@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════
+# SecureForge .gitignore
+# ═══════════════════════════════════════════════
+
+# ── Rust ──────────────────────────────────────
+/target/
+**/*.rs.bk
+Cargo.lock
+!crates/sih149-cli/Cargo.lock
+
+# ── Node / Frontend ──────────────────────────
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ── Python ───────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+.env
+
+# ── Tauri ────────────────────────────────────
+src-tauri/target/
+src-tauri/gen/
+src-tauri/WixTools/
+
+# ── IDE / Editor ─────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Build Artifacts ──────────────────────────
+*.iso
+*.img
+*.dd
+*.raw
+*.e01
+*.o
+*.so
+*.dylib
+
+# ── Test Artifacts ───────────────────────────
+tests/fixtures/generated/
+tests/output/
+coverage/
+lcov.info
+
+# ── Reports & Case Data ─────────────────────
+*.db
+*.pdf
+reports/
+case_data/
+
+# ── Secrets ──────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+!pipeline/templates/*
