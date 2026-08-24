@@ -1,0 +1,37 @@
+# SecureForge Live ISO Package List
+
+# Display server and window manager
+xorg
+openbox
+xterm
+
+# System tools for forensic operations
+hdparm
+nvme-cli
+smartmontools
+util-linux
+parted
+fdisk
+lsscsi
+
+# Filesystem support
+ntfs-3g
+dosfstools
+exfatprogs
+
+# Python runtime for pipeline
+python3
+python3-pip
+python3-venv
+
+# Libraries
+libwebkit2gtk-4.1-0
+libewf2
+
+# Utilities
+curl
+wget
+file
+xxd
+pv
+SECUREFORGE

@@ -1,0 +1,9 @@
+#!/bin/bash
+# SecureForge Live ISO Autostart
+# Launches the SecureForge desktop application in kiosk mode
+
+# Wait for X to be ready
+sleep 2
+
+# Launch SecureForge in fullscreen
+/usr/local/bin/sih149 --mode desktop &
