@@ -1,0 +1,7 @@
+# Database file signatures
+
+[[signature]]
+name = "SQLite"
+category = "Databases"
+header = "SQLite format 3\\x00"
+max_size = "2GB"

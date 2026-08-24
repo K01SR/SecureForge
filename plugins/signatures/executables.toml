@@ -1,0 +1,25 @@
+# Executable and binary file signatures
+
+[[signature]]
+name = "ELF"
+category = "System"
+header = "\\x7FELF"
+max_size = "1GB"
+
+[[signature]]
+name = "Windows PE (EXE/DLL)"
+category = "System"
+header = "MZ"
+max_size = "1GB"
+
+[[signature]]
+name = "Mach-O (64-bit)"
+category = "System"
+header = "\\xCF\\xFA\\xED\\xFE"
+max_size = "1GB"
+
+[[signature]]
+name = "Java Class"
+category = "System"
+header = "\\xCA\\xFE\\xBA\\xBE"
+max_size = "100MB"

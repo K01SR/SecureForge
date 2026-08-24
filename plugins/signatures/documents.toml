@@ -1,0 +1,21 @@
+# Document file signatures
+
+[[signature]]
+name = "PDF"
+category = "Documents"
+header = "%PDF-"
+footer = "%%EOF"
+max_size = "500MB"
+
+[[signature]]
+name = "Microsoft Office (OLE2)"
+category = "Documents"
+header = "\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1"
+max_size = "500MB"
+
+[[signature]]
+name = "RTF"
+category = "Documents"
+header = "{\\rtf"
+footer = "}"
+max_size = "100MB"

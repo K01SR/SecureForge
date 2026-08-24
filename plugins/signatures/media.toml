@@ -1,0 +1,83 @@
+# Media file signatures — images, audio, video
+
+[[signature]]
+name = "JPEG"
+category = "Media"
+header = "\\xFF\\xD8\\xFF"
+footer = "\\xFF\\xD9"
+max_size = "50MB"
+
+[[signature]]
+name = "PNG"
+category = "Media"
+header = "\\x89PNG\\r\\n\\x1A\\n"
+footer = "IEND\\xAE\\x42\\x60\\x82"
+max_size = "100MB"
+
+[[signature]]
+name = "GIF87a"
+category = "Media"
+header = "GIF87a"
+footer = "\\x00\\x3B"
+max_size = "50MB"
+
+[[signature]]
+name = "GIF89a"
+category = "Media"
+header = "GIF89a"
+footer = "\\x00\\x3B"
+max_size = "50MB"
+
+[[signature]]
+name = "BMP"
+category = "Media"
+header = "BM"
+max_size = "100MB"
+
+[[signature]]
+name = "TIFF (Little Endian)"
+category = "Media"
+header = "II\\x2A\\x00"
+max_size = "500MB"
+
+[[signature]]
+name = "TIFF (Big Endian)"
+category = "Media"
+header = "MM\\x00\\x2A"
+max_size = "500MB"
+
+[[signature]]
+name = "WebP"
+category = "Media"
+header = "RIFF????WEBP"
+max_size = "100MB"
+
+[[signature]]
+name = "MP4/MOV"
+category = "Media"
+header = "????ftyp"
+max_size = "10GB"
+
+[[signature]]
+name = "AVI"
+category = "Media"
+header = "RIFF????AVI "
+max_size = "10GB"
+
+[[signature]]
+name = "MP3 (ID3v2)"
+category = "Media"
+header = "ID3"
+max_size = "100MB"
+
+[[signature]]
+name = "FLAC"
+category = "Media"
+header = "fLaC"
+max_size = "500MB"
+
+[[signature]]
+name = "WAV"
+category = "Media"
+header = "RIFF????WAVE"
+max_size = "2GB"

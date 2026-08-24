@@ -1,0 +1,50 @@
+# Archive and compressed file signatures
+
+[[signature]]
+name = "ZIP"
+category = "Archives"
+header = "PK\\x03\\x04"
+footer = "PK\\x05\\x06"
+max_size = "4GB"
+
+[[signature]]
+name = "RAR5"
+category = "Archives"
+header = "Rar!\\x1A\\x07\\x01\\x00"
+max_size = "4GB"
+
+[[signature]]
+name = "RAR4"
+category = "Archives"
+header = "Rar!\\x1A\\x07\\x00"
+max_size = "4GB"
+
+[[signature]]
+name = "7-Zip"
+category = "Archives"
+header = "7z\\xBC\\xAF\\x27\\x1C"
+max_size = "4GB"
+
+[[signature]]
+name = "Gzip"
+category = "Archives"
+header = "\\x1F\\x8B"
+max_size = "4GB"
+
+[[signature]]
+name = "Bzip2"
+category = "Archives"
+header = "BZh"
+max_size = "4GB"
+
+[[signature]]
+name = "XZ"
+category = "Archives"
+header = "\\xFD7zXZ\\x00"
+max_size = "4GB"
+
+[[signature]]
+name = "Zstandard"
+category = "Archives"
+header = "\\x28\\xB5\\x2F\\xFD"
+max_size = "4GB"
