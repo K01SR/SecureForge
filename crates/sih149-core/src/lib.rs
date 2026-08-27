@@ -9,6 +9,7 @@
 //! - **classify**: Recovered file categorization and duplicate detection
 //! - **db**: SQLite case management database
 
+pub mod error;
 pub mod audit;
 pub mod carver;
 pub mod classify;
