@@ -1,6 +1,5 @@
 use crate::error::Result;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 

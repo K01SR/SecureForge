@@ -1,5 +1,5 @@
 use crate::disk::DiskSource;
-use crate::error::{Result, SecureForgeError};
+use crate::error::Result;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
