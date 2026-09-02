@@ -18,3 +18,5 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+argon2 = { workspace = true, features = ["password-hash", "std"] }
+rusqlite.workspace = true
