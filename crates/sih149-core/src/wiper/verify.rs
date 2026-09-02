@@ -1,6 +1,6 @@
 use crate::disk::DiskSource;
 use crate::error::Result;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::SeekFrom;
 use tracing::{info, warn};
 
 /// Verifies that a disk has been successfully wiped with a specific pattern.

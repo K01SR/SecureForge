@@ -3,7 +3,7 @@ use crate::carver::scanner::SectorScanner;
 use crate::carver::structure::{jpeg, pdf, png, sqlite, zip};
 use crate::disk::DiskSource;
 use crate::error::Result;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::SeekFrom;
 use tracing::{debug, info};
 
 pub struct CarvingEngine {
