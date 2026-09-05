@@ -20,3 +20,4 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 argon2 = { workspace = true, features = ["password-hash", "std"] }
 rusqlite.workspace = true
+lazy_static = "1.5.0"
