@@ -45,7 +45,7 @@ struct LsblkDevice {
     dev_type: String,
     mountpoint: Option<String>,
     mountpoints: Option<Vec<Option<String>>>,
-    vendor: Option<String>,
+    // vendor: Option<String>,
     model: Option<String>,
     serial: Option<String>,
     rota: Option<String>,
@@ -136,7 +136,7 @@ struct SmartctlStatus {
 
 #[tauri::command]
 pub fn get_drive_info(device_path: String) -> Result<DriveInfo, String> {
-    let mut drives = list_drives()?;
+    let drives = list_drives()?;
     let mut drive = drives.into_iter().find(|d| d.path == device_path)
         .ok_or_else(|| format!("Drive not found: {}", device_path))?;
 
