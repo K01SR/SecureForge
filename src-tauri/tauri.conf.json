@@ -10,7 +10,6 @@
     "beforeBuildCommand": "cd src-ui && npm run build"
   },
   "app": {
-    "title": "SecureForge",
     "windows": [
       {
         "title": "SecureForge — Sanitize. Recover. Certify.",
