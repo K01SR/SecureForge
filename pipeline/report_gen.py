@@ -24,3 +24,12 @@ def parse_args():
     parser.add_argument('--tsa-token', help="TSA token path")
     return parser.parse_args()
 
+def load_audit_data(path):
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+            return data
+    except Exception as e:
+        print(f"Error loading audit data: {e}", file=sys.stderr)
+        sys.exit(1)
+
