@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum SecureForgeError {
+pub enum CoreError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Parse error: {0}")]
@@ -18,4 +18,4 @@ pub enum SecureForgeError {
     Unknown,
 }
 
-pub type Result<T> = std::result::Result<T, SecureForgeError>;
+pub type Result<T> = std::result::Result<T, CoreError>;
