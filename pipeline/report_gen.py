@@ -45,3 +45,17 @@ def render_html(data, template_name, template_dir):
         print(f"Error rendering template: {e}", file=sys.stderr)
         sys.exit(1)
 
+def generate_pdf(html_str, output_path):
+    if WEASYPRINT_AVAILABLE:
+        try:
+            HTML(string=html_str).write_pdf(output_path)
+            return True
+        except Exception as e:
+            print(f"WeasyPrint error: {e}", file=sys.stderr)
+    
+    html_path = str(output_path).replace('.pdf', '.html')
+    print(f"Warning: WeasyPrint not available or failed. Saving as HTML to {html_path}", file=sys.stderr)
+    with open(html_path, 'w') as f:
+        f.write(html_str)
+    return False
+
