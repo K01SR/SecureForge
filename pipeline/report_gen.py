@@ -59,3 +59,12 @@ def generate_pdf(html_str, output_path):
         f.write(html_str)
     return False
 
+def compute_report_hash(path):
+    if not os.path.exists(path):
+        return None
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        while chunk := f.read(8192):
+            h.update(chunk)
+    return h.hexdigest()
+
