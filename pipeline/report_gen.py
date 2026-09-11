@@ -68,3 +68,21 @@ def compute_report_hash(path):
             h.update(chunk)
     return h.hexdigest()
 
+def main():
+    args = parse_args()
+    data = load_audit_data(args.input)
+    data['investigator'] = args.investigator
+    data['case_id'] = args.case_id
+    
+    template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+    html_str = render_html(data, args.template, template_dir)
+    
+    is_pdf = generate_pdf(html_str, args.output)
+    final_output = args.output if is_pdf else str(args.output).replace('.pdf', '.html')
+    
+    file_hash = compute_report_hash(final_output)
+    
+    print(json.dumps({"status": "ok", "output": final_output, "hash": file_hash}))
+
+if __name__ == '__main__':
+    main()
