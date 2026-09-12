@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""
-SecureForge File Classifier
+import argparse, json, sys, os, hashlib
+from pathlib import Path
+from datetime import datetime
 
-Scans a directory of carved files and outputs JSON Lines to stdout
-with MIME type, category, EXIF data, and perceptual hash for each file.
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    MAGIC_AVAILABLE = False
 
-Usage:
-    python3 classify.py --scan-dir /path/to/carved/files/
-"""
+try:
+    import exifread
+    EXIF_AVAILABLE = True
+except ImportError:
+    EXIF_AVAILABLE = False
 
-def main():
-    # TODO: Implement file classification pipeline
-    print("SecureForge File Classifier — not yet implemented")
-
-if __name__ == "__main__":
-    main()
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
