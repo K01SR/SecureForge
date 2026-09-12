@@ -20,3 +20,9 @@ try:
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+def parse_args():
+    parser = argparse.ArgumentParser(description="SecureForge File Classifier")
+    parser.add_argument('--scan-dir', required=True, help="Directory to scan")
+    parser.add_argument('--min-size', type=int, default=0, help="Minimum file size in bytes")
+    parser.add_argument('--output-json', help="Output JSON Lines file")
+    return parser.parse_args()
