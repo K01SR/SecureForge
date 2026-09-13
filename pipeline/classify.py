@@ -26,3 +26,17 @@ def parse_args():
     parser.add_argument('--min-size', type=int, default=0, help="Minimum file size in bytes")
     parser.add_argument('--output-json', help="Output JSON Lines file")
     return parser.parse_args()
+def detect_mime(path):
+    if MAGIC_AVAILABLE:
+        try:
+            return magic.from_file(str(path), mime=True)
+        except:
+            pass
+    
+    ext = os.path.splitext(path)[1].lower()
+    ext_map = {
+        '.txt': 'text/plain', '.jpg': 'image/jpeg', '.png': 'image/png',
+        '.pdf': 'application/pdf', '.zip': 'application/zip',
+        '.exe': 'application/x-msdownload', '.db': 'application/x-sqlite3'
+    }
+    return ext_map.get(ext, 'application/octet-stream')
