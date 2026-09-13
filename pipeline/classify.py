@@ -40,3 +40,15 @@ def detect_mime(path):
         '.exe': 'application/x-msdownload', '.db': 'application/x-sqlite3'
     }
     return ext_map.get(ext, 'application/octet-stream')
+def get_category(mime):
+    if mime.startswith('image/') or mime.startswith('video/') or mime.startswith('audio/'):
+        return 'Media'
+    if mime in ['application/pdf', 'text/plain']:
+        return 'Documents'
+    if mime in ['application/zip', 'application/x-tar']:
+        return 'Archives'
+    if 'sqlite' in mime or 'sql' in mime:
+        return 'Databases'
+    if 'executable' in mime or 'x-msdownload' in mime:
+        return 'Executables'
+    return 'Unknown'
