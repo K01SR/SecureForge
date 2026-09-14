@@ -52,3 +52,12 @@ def get_category(mime):
     if 'executable' in mime or 'x-msdownload' in mime:
         return 'Executables'
     return 'Unknown'
+def extract_exif(path):
+    if not EXIF_AVAILABLE:
+        return {}
+    try:
+        with open(path, 'rb') as f:
+            tags = exifread.process_file(f, details=False)
+            return {k: str(v) for k, v in tags.items() if k in ['EXIF DateTimeOriginal', 'Image Make', 'Image Model']}
+    except:
+        return {}
