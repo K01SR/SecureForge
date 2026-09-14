@@ -86,3 +86,12 @@ def compute_dhash(path):
             return ''.join(hex_string)
     except:
         return None
+def compute_sha256(path):
+    h = hashlib.sha256()
+    try:
+        with open(path, 'rb') as f:
+            while chunk := f.read(8192):
+                h.update(chunk)
+        return h.hexdigest()
+    except:
+        return None
