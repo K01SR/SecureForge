@@ -61,3 +61,28 @@ def extract_exif(path):
             return {k: str(v) for k, v in tags.items() if k in ['EXIF DateTimeOriginal', 'Image Make', 'Image Model']}
     except:
         return {}
+def compute_dhash(path):
+    if not PIL_AVAILABLE:
+        return None
+    try:
+        with Image.open(path) as img:
+            img = img.convert('L').resize((9, 8), Image.Resampling.LANCZOS)
+            pixels = list(img.getdata())
+            diff = []
+            for row in range(8):
+                for col in range(8):
+                    pixel_left = img.getpixel((col, row))
+                    pixel_right = img.getpixel((col + 1, row))
+                    diff.append(pixel_left > pixel_right)
+            
+            decimal_value = 0
+            hex_string = []
+            for index, value in enumerate(diff):
+                if value:
+                    decimal_value += 2**(index % 8)
+                if (index % 8) == 7:
+                    hex_string.append(hex(decimal_value)[2:].rjust(2, '0'))
+                    decimal_value = 0
+            return ''.join(hex_string)
+    except:
+        return None
