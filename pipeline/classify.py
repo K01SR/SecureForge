@@ -108,3 +108,26 @@ def classify_file(path):
         'exif': extract_exif(path) if mime.startswith('image/') else {},
         'classified_at': datetime.utcnow().isoformat()
     }
+def main():
+    args = parse_args()
+    count = 0
+    out_f = open(args.output_json, 'w') if args.output_json else sys.stdout
+    try:
+        for root, dirs, files in os.walk(args.scan_dir):
+            for file in files:
+                filepath = os.path.join(root, file)
+                try:
+                    size = os.path.getsize(filepath)
+                    if size < args.min_size: continue
+                    record = classify_file(filepath)
+                    out_f.write(json.dumps(record) + '\n')
+                    count += 1
+                except Exception as e:
+                    print(f"Error processing {filepath}: {e}", file=sys.stderr)
+    finally:
+        if args.output_json and out_f != sys.stdout:
+            out_f.close()
+    print(f"Classification summary: processed {count} files", file=sys.stderr)
+
+if __name__ == '__main__':
+    main()
