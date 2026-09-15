@@ -95,3 +95,16 @@ def compute_sha256(path):
         return h.hexdigest()
     except:
         return None
+def classify_file(path):
+    mime = detect_mime(path)
+    return {
+        'path': str(path),
+        'filename': os.path.basename(path),
+        'size_bytes': os.path.getsize(path),
+        'mime': mime,
+        'category': get_category(mime),
+        'sha256': compute_sha256(path),
+        'dhash': compute_dhash(path) if mime.startswith('image/') else None,
+        'exif': extract_exif(path) if mime.startswith('image/') else {},
+        'classified_at': datetime.utcnow().isoformat()
+    }
