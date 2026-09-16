@@ -22,3 +22,6 @@ def submit_to_tsa(req_bytes, tsa_url):
     except Exception as e:
         print(f"TSA request failed: {e}", file=sys.stderr)
         sys.exit(1)
+def save_token(token_bytes, output_path):
+    with open(output_path, 'wb') as f:
+        f.write(token_bytes)
