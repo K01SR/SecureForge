@@ -14,3 +14,11 @@ def create_timestamp_request(hash_hex):
     hash_bytes = bytes.fromhex(hash_hex)
     req = b'\x30\x31\x02\x01\x01\x30\x21\x30\x09\x06\x05\x2b\x0e\x03\x02\x1a\x05\x00\x04\x14' + hash_bytes + b'\x01\x01\xff'
     return req
+def submit_to_tsa(req_bytes, tsa_url):
+    req = urllib.request.Request(tsa_url, data=req_bytes, headers={'Content-Type': 'application/timestamp-query'})
+    try:
+        with urllib.request.urlopen(req) as response:
+            return response.read()
+    except Exception as e:
+        print(f"TSA request failed: {e}", file=sys.stderr)
+        sys.exit(1)
