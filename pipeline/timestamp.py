@@ -25,3 +25,12 @@ def submit_to_tsa(req_bytes, tsa_url):
 def save_token(token_bytes, output_path):
     with open(output_path, 'wb') as f:
         f.write(token_bytes)
+def verify_token(token_path, hash_hex):
+    # Stub verification
+    with open(token_path, 'rb') as f:
+        token = f.read()
+    if bytes.fromhex(hash_hex) in token:
+        print("Verification OK")
+        return True
+    print("Verification Failed")
+    return False
