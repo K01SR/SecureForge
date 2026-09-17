@@ -34,3 +34,24 @@ def verify_token(token_path, hash_hex):
         return True
     print("Verification Failed")
     return False
+def main():
+    args = parse_args()
+    if args.verify:
+        if not args.token or not args.hash:
+            print("Both --token and --hash required for verify", file=sys.stderr)
+            sys.exit(1)
+        verify_token(args.token, args.hash)
+    elif args.hash:
+        if not args.output:
+            print("--output required to save token", file=sys.stderr)
+            sys.exit(1)
+        req = create_timestamp_request(args.hash)
+        resp = submit_to_tsa(req, args.tsa_url)
+        save_token(resp, args.output)
+        print(f"Token saved to {args.output}")
+    else:
+        print("Must specify --hash or --verify", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
