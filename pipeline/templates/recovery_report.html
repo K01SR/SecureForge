@@ -9,3 +9,18 @@
         <h1>SecureForge - FORENSIC FILE RECOVERY REPORT</h1>
         <p>Case ID: {{ case_id }}</p>
     </div>
+    <div class="section">
+        <h2>Evidence Source</h2>
+        <p>Device: {{ device }}</p>
+    </div>
+    <div class="section">
+        <h2>Recovered Files</h2>
+        <table>
+            <tr><th>Filename</th><th>Size</th><th>Category</th></tr>
+            {% for file in recovered_files %}
+            <tr><td>{{ file.filename }}</td><td>{{ file.size }}</td><td>{{ file.category }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>
