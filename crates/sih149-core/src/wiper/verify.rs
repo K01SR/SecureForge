@@ -31,7 +31,7 @@ pub fn verify_wipe<D: DiskSource>(
         let to_read = std::cmp::min(chunk_size as u64, size - offset) as usize;
         let expected = expected_pattern(to_read);
         
-        disk.read_exact(&mut buffer[..to_read]).map_err(|e| crate::error::SecureForgeError::Io(e))?;
+        disk.read_exact(&mut buffer[..to_read]).map_err(|e| crate::error::CoreError::Io(e))?;
         
         if &buffer[..to_read] != &expected[..] {
             warn!("Wipe verification failed at offset {}", offset);

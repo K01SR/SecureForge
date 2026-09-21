@@ -36,12 +36,12 @@ impl LuaPluginHost {
         let globals = lua.globals();
         
         // Define signature function to capture data
-        let sig_data = lua.create_table().map_err(|e| CoreError::Parse(e.to_string()))?;
+        let _sig_data = lua.create_table().map_err(|e| CoreError::Parse(e.to_string()))?;
         
         // Let's create a proxy table to intercept the 'signature' call
         // Actually, mlua allows creating a Rust function to bind to "signature"
         
-        let signature_func = lua.create_function(|_, table: mlua::Table| {
+        let signature_func = lua.create_function(move |lua, table: mlua::Table| {
             let name: String = table.get("name")?;
             let category: String = table.get("category")?;
             let header_hex: String = table.get("header")?;
@@ -123,7 +123,7 @@ impl LuaPluginHost {
         let lua = Lua::new();
         let globals = lua.globals();
         
-        let signature_func = lua.create_function(|_, table: mlua::Table| {
+        let signature_func = lua.create_function(move |lua, table: mlua::Table| {
             Ok(table) // just return the table during validation
         }).map_err(|e| CoreError::Parse(e.to_string()))?;
         

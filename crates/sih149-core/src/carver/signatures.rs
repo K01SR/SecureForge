@@ -28,7 +28,7 @@ impl SignatureDatabase {
     /// Load signatures from a TOML file.
     pub fn load_from_toml<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path)?;
-        let db: SignatureDatabase = toml::from_str(&content).map_err(|e| crate::error::SecureForgeError::Parse(e.to_string()))?;
+        let db: SignatureDatabase = toml::from_str(&content).map_err(|e| crate::error::CoreError::Parse(e.to_string()))?;
         Ok(db)
     }
 
@@ -39,7 +39,7 @@ impl SignatureDatabase {
             .step_by(2)
             .map(|i| {
                 u8::from_str_radix(&hex_str[i..i + 2], 16)
-                    .map_err(|e| crate::error::SecureForgeError::Parse(e.to_string()))
+                    .map_err(|e| crate::error::CoreError::Parse(e.to_string()))
             })
             .collect()
     }
