@@ -123,7 +123,7 @@ impl LuaPluginHost {
         let lua = Lua::new();
         let globals = lua.globals();
         
-        let signature_func = lua.create_function(move |lua, table: mlua::Table| {
+        let signature_func = lua.create_function(move |_lua, table: mlua::Table| {
             Ok(table) // just return the table during validation
         }).map_err(|e| CoreError::Parse(e.to_string()))?;
         

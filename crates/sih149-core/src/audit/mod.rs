@@ -13,6 +13,7 @@ pub struct AuditEngine {
     chain: Arc<Mutex<HashChain>>,
     case_id: String,
     operator: Option<String>,
+    #[allow(dead_code)] // reserved for future on-disk report export
     output_dir: PathBuf,
 }
 
