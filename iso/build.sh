@@ -13,3 +13,7 @@ ISO_NAME="secureforge-${VERSION}-live-amd64.iso"
 check_dependencies() {
     echo "Checking dependencies..."
 }
+
+setup_build_dir() {
+    mkdir -p "$BUILD_DIR"
+}
