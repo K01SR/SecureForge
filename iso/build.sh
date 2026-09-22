@@ -9,3 +9,7 @@ BUILD_DIR="$SCRIPT_DIR/build"
 OUTPUT_DIR="$SCRIPT_DIR/output"
 VERSION="0.1.0"
 ISO_NAME="secureforge-${VERSION}-live-amd64.iso"
+
+check_dependencies() {
+    echo "Checking dependencies..."
+}
