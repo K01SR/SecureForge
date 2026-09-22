@@ -17,3 +17,7 @@ check_dependencies() {
 setup_build_dir() {
     mkdir -p "$BUILD_DIR"
 }
+
+configure_live_build() {
+    echo "Configuring live build..."
+}
