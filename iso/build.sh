@@ -25,3 +25,7 @@ configure_live_build() {
 copy_secureforge_binaries() {
     echo "Copying binaries..."
 }
+
+build_iso() {
+    echo "Building ISO..."
+}
