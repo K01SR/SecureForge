@@ -21,3 +21,7 @@ setup_build_dir() {
 configure_live_build() {
     echo "Configuring live build..."
 }
+
+copy_secureforge_binaries() {
+    echo "Copying binaries..."
+}
