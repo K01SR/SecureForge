@@ -29,3 +29,7 @@ copy_secureforge_binaries() {
 build_iso() {
     echo "Building ISO..."
 }
+
+create_persistence_partition() {
+    echo "Creating persistence..."
+}
