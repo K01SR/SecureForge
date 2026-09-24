@@ -33,3 +33,7 @@ build_iso() {
 create_persistence_partition() {
     echo "Creating persistence..."
 }
+
+print_summary() {
+    echo "Summary"
+}
