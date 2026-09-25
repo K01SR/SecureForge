@@ -5,3 +5,6 @@ set -euo pipefail
 
 # Install pip packages
 pip install weasyprint jinja2 pillow exifread python-magic
+
+# Create secureforge system user
+useradd -r -s /bin/false secureforge || true
