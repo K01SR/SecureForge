@@ -2,3 +2,6 @@
 # SecureForge chroot setup hook
 # Runs inside the live system chroot during build
 set -euo pipefail
+
+# Install pip packages
+pip install weasyprint jinja2 pillow exifread python-magic
