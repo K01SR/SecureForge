@@ -37,3 +37,15 @@ create_persistence_partition() {
 print_summary() {
     echo "Summary"
 }
+
+main() {
+    check_dependencies
+    setup_build_dir
+    configure_live_build
+    copy_secureforge_binaries
+    build_iso
+    create_persistence_partition
+    print_summary
+}
+
+main
