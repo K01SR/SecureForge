@@ -1,13 +1,4 @@
 #!/bin/bash
-# Post-install hook: configure the forensic environment
-
-# Set default user
-useradd -m -G sudo,disk,cdrom -s /bin/bash forensics || true
-echo "forensics:secureforge" | chpasswd
-
-# Disable unnecessary services
-systemctl disable NetworkManager 2>/dev/null || true
-systemctl disable bluetooth 2>/dev/null || true
-systemctl disable cups 2>/dev/null || true
-
-echo "[SecureForge] Post-install configuration complete"
+# SecureForge chroot setup hook
+# Runs inside the live system chroot during build
+set -euo pipefail
