@@ -16,3 +16,6 @@ touch /etc/secureforge/config.toml
 # Copy plugins
 mkdir -p /usr/local/share/secureforge/plugins/
 cp -r /tmp/plugins/* /usr/local/share/secureforge/plugins/ || true
+
+# Set up udev rules for write-protect
+echo 'ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", RUN+="/usr/local/bin/secureforge-wp"' > /etc/udev/rules.d/99-secureforge-wp.rules
