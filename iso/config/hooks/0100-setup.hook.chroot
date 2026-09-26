@@ -12,3 +12,7 @@ useradd -r -s /bin/false secureforge || true
 # Set up /etc/secureforge/ config dir
 mkdir -p /etc/secureforge
 touch /etc/secureforge/config.toml
+
+# Copy plugins
+mkdir -p /usr/local/share/secureforge/plugins/
+cp -r /tmp/plugins/* /usr/local/share/secureforge/plugins/ || true
