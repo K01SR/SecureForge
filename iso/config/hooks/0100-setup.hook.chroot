@@ -26,3 +26,6 @@ cat << 'EOF' > /usr/local/bin/secureforge-gui
 echo "Starting SecureForge GUI..."
 EOF
 chmod +x /usr/local/bin/secureforge-gui
+
+# Set up PAM/sudo rules
+echo "secureforge ALL=(ALL) NOPASSWD: /usr/sbin/hdparm, /usr/sbin/nvme" > /etc/sudoers.d/secureforge
