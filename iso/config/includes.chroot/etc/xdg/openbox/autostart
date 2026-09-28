@@ -1,9 +1,22 @@
 #!/bin/bash
-# SecureForge Live ISO Autostart
-# Launches the SecureForge desktop application in kiosk mode
+# SecureForge Openbox autostart
+# Launches SecureForge GUI in kiosk mode on boot
 
-# Wait for X to be ready
+# Set wallpaper (dark professional)
+feh --bg-fill /usr/local/share/secureforge/wallpaper.png 2>/dev/null || \
+   xsetroot -solid '#0d1117'
+
+# Disable screen saver and DPMS for forensic sessions  
+xset s off
+xset -dpms
+xset s noblank
+
+# Mount RECOVERY_DATA partition if present
+/usr/local/bin/secureforge-mount-recovery &
+
+# Launch SecureForge GUI (Tauri desktop app)
 sleep 2
+/usr/local/bin/secureforge-desktop &
 
-# Launch SecureForge in fullscreen
-/usr/local/bin/sih149 --mode desktop &
+# Launch system tray with network toggle
+/usr/local/bin/secureforge-tray &
