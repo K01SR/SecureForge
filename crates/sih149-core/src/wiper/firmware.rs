@@ -1,9 +1,32 @@
-//! Hardware firmware sanitization commands.
-//!
-//! Wraps system tools as subprocesses:
-//! - `hdparm --security-erase` / `--security-erase-enhanced` (ATA)
-//! - `nvme sanitize --sanact=2` (Block Erase)
-//! - `nvme sanitize --sanact=4` (Cryptographic Erase)
-//! - `nvme format --ses=1` (User Data Erase)
-//!
-//! Also handles HPA/DCO detection and removal via `hdparm`.
+//! Firmware-level secure erase commands
+//! Wraps hdparm and nvme-cli via subprocess
+use std::process::{Command, Output};
+use std::path::Path;
+use crate::error::CoreError;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FirmwareMethod {
+    NvmeCryptoErase,
+    NvmeBlockErase,
+    AtaSecureErase,
+    AtaEnhancedErase,
+}
+
+#[derive(Debug)]
+pub struct FirmwareEraseResult {
+    pub method: FirmwareMethod,
+    pub success: bool,
+    pub command_output: String,
+    pub duration_secs: u64,
+}
+
+#[derive(Debug)]
+pub struct NvmeCapabilities {
+    pub sanitize_supported: bool,
+}
+
+#[derive(Debug)]
+pub struct HpaInfo {
+    pub hpa_enabled: bool,
+    pub dco_enabled: bool,
+}
