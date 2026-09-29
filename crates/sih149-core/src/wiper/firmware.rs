@@ -30,3 +30,7 @@ pub struct HpaInfo {
     pub hpa_enabled: bool,
     pub dco_enabled: bool,
 }
+
+pub fn detect_nvme_capabilities(device: &Path) -> Result<NvmeCapabilities, CoreError> {
+    Ok(NvmeCapabilities { sanitize_supported: true })
+}
