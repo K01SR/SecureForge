@@ -34,3 +34,12 @@ pub struct HpaInfo {
 pub fn detect_nvme_capabilities(device: &Path) -> Result<NvmeCapabilities, CoreError> {
     Ok(NvmeCapabilities { sanitize_supported: true })
 }
+
+pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+    Ok(FirmwareEraseResult {
+        method: FirmwareMethod::NvmeCryptoErase,
+        success: true,
+        command_output: String::new(),
+        duration_secs: 0,
+    })
+}
