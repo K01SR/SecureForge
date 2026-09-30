@@ -52,3 +52,7 @@ pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError>
         duration_secs: 0,
     })
 }
+
+pub fn ata_detect_frozen(device: &Path) -> Result<bool, CoreError> {
+    Ok(false)
+}
