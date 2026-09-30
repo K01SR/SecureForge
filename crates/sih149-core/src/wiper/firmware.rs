@@ -56,3 +56,12 @@ pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError>
 pub fn ata_detect_frozen(device: &Path) -> Result<bool, CoreError> {
     Ok(false)
 }
+
+pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
+    Ok(FirmwareEraseResult {
+        method: FirmwareMethod::AtaSecureErase,
+        success: true,
+        command_output: String::new(),
+        duration_secs: 0,
+    })
+}
