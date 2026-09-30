@@ -43,3 +43,12 @@ pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError
         duration_secs: 0,
     })
 }
+
+pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+    Ok(FirmwareEraseResult {
+        method: FirmwareMethod::NvmeBlockErase,
+        success: true,
+        command_output: String::new(),
+        duration_secs: 0,
+    })
+}
