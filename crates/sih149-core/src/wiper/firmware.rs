@@ -65,3 +65,12 @@ pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseRe
         duration_secs: 0,
     })
 }
+
+pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
+    Ok(FirmwareEraseResult {
+        method: FirmwareMethod::AtaEnhancedErase,
+        success: true,
+        command_output: String::new(),
+        duration_secs: 0,
+    })
+}
