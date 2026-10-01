@@ -74,3 +74,7 @@ pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareErase
         duration_secs: 0,
     })
 }
+
+pub fn detect_hpa_dco(device: &Path) -> Result<HpaInfo, CoreError> {
+    Ok(HpaInfo { hpa_enabled: false, dco_enabled: false })
+}
