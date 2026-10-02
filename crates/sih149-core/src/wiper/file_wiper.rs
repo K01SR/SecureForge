@@ -1,10 +1,20 @@
-//! Secure file and folder erasure.
-//!
-//! For selective deletion of individual files:
-//! 1. Overwrite file content with selected pattern
-//! 2. Scrub filesystem metadata (delegated to `metadata` submodule)
-//! 3. Rename file 10+ times to random strings
-//! 4. Wipe slack space (tail of last allocated cluster)
-//! 5. Unlink file
-//!
-//! Supports batch operations on directory trees and glob patterns.
+//! Secure file and folder erasure
+use std::fs::{self, OpenOptions};
+use std::io::{Write, Seek, SeekFrom};
+use std::path::Path;
+use crate::error::CoreError;
+
+pub struct FileWiper {
+    passes: u32,
+    rename_count: u32,
+    scrub_slack_space: bool,
+}
+
+#[derive(Debug)]
+pub struct WipeFileResult {
+    pub path: String,
+    pub bytes_wiped: u64,
+    pub passes_completed: u32,
+    pub slack_bytes_wiped: u64,
+    pub success: bool,
+}
