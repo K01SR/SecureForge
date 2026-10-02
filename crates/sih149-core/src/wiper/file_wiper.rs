@@ -18,3 +18,9 @@ pub struct WipeFileResult {
     pub slack_bytes_wiped: u64,
     pub success: bool,
 }
+
+impl FileWiper {
+    pub fn new(passes: u32, rename_count: u32, scrub_slack_space: bool) -> Self {
+        Self { passes, rename_count, scrub_slack_space }
+    }
+}
