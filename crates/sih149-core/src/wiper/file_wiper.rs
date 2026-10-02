@@ -36,3 +36,9 @@ impl FileWiper {
         })
     }
 }
+
+impl FileWiper {
+    pub fn wipe_directory(&self, path: &Path) -> Result<Vec<WipeFileResult>, CoreError> {
+        Ok(vec![])
+    }
+}
