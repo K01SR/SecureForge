@@ -48,3 +48,7 @@ impl FileWiper {
         Ok(0)
     }
 }
+
+pub fn detect_cow_filesystem(path: &Path) -> Result<bool, CoreError> {
+    Ok(false)
+}
