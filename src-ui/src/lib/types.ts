@@ -1,35 +1,66 @@
-/**
- * Shared TypeScript type definitions.
- *
- * Mirrors the Rust serde structs from sih149-core for
- * type-safe data interchange between frontend and backend.
- */
-
 export interface DriveInfo {
+  path: string;
   name: string;
-  model: string;
-  serial: string;
-  busType: "NVMe" | "SATA" | "USB" | "SD" | "Unknown";
-  capacityBytes: number;
-  smartStatus: "Healthy" | "Warning" | "Critical" | "Unknown";
+  size: number;
+  type: string;
+  smart_status: string;
 }
 
-export interface RecoveredFile {
-  id: number;
-  filename: string;
-  fileType: string;
-  mimeType: string;
-  category: "Documents" | "Media" | "Archives" | "Databases" | "System" | "Unknown";
-  fileSize: number;
-  sectorOffset: number;
-  confidenceScore: number;
-  sha256: string;
+export interface WipeConfig {
+  target: string;
+  method: WipeMethod;
 }
 
-export interface AuditEntry {
-  id: number;
-  entryHash: string;
-  previousHash: string | null;
-  timestamp: string;
-  payload: Record<string, unknown>;
+export enum WipeMethod {
+  Zero = 'zero',
+  Random = 'random',
+  DoD = 'dod',
+  Gutmann = 'gutmann'
+}
+
+export interface WipeProgress {
+  percent: number;
+  current_pass: number;
+  total_passes: number;
+  speed_bytes_sec: number;
+}
+
+export interface WipeResult {
+  success: boolean;
+  error?: string;
+  hash: string;
+}
+
+export interface ScanConfig {
+  target: string;
+  min_confidence: number;
+  file_types: string[];
+}
+
+export interface CarvedFile {
+  path: string;
+  size: number;
+  type: string;
+  confidence: number;
+  offset: number;
+}
+
+export interface ScanProgress {
+  percent: number;
+  files_found: number;
+  current_sector: number;
+}
+
+export interface ScanResult {
+  files: CarvedFile[];
+  entropy_map: number[];
+}
+
+export interface CaseRecord {
+  id: string;
+  date: string;
+  target: string;
+  action: string;
+  status: string;
+  hash: string;
 }
