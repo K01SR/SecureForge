@@ -42,3 +42,9 @@ impl FileWiper {
         Ok(vec![])
     }
 }
+
+impl FileWiper {
+    pub fn scrub_slack_space(&self, path: &Path) -> Result<u64, CoreError> {
+        Ok(0)
+    }
+}
