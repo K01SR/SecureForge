@@ -1,6 +1,5 @@
 //! Firmware-level secure erase commands
 //! Wraps hdparm and nvme-cli via subprocess
-use std::process::{Command, Output};
 use std::path::Path;
 use crate::error::CoreError;
 
@@ -31,11 +30,11 @@ pub struct HpaInfo {
     pub dco_enabled: bool,
 }
 
-pub fn detect_nvme_capabilities(device: &Path) -> Result<NvmeCapabilities, CoreError> {
+pub fn detect_nvme_capabilities(_device: &Path) -> Result<NvmeCapabilities, CoreError> {
     Ok(NvmeCapabilities { sanitize_supported: true })
 }
 
-pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+pub fn nvme_crypto_erase(_device: &Path) -> Result<FirmwareEraseResult, CoreError> {
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::NvmeCryptoErase,
         success: true,
@@ -44,7 +43,7 @@ pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError
     })
 }
 
-pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+pub fn nvme_block_erase(_device: &Path) -> Result<FirmwareEraseResult, CoreError> {
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::NvmeBlockErase,
         success: true,
@@ -53,11 +52,11 @@ pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError>
     })
 }
 
-pub fn ata_detect_frozen(device: &Path) -> Result<bool, CoreError> {
+pub fn ata_detect_frozen(_device: &Path) -> Result<bool, CoreError> {
     Ok(false)
 }
 
-pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
+pub fn ata_secure_erase(_device: &Path, _password: &str) -> Result<FirmwareEraseResult, CoreError> {
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::AtaSecureErase,
         success: true,
@@ -66,7 +65,7 @@ pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseRe
     })
 }
 
-pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
+pub fn ata_enhanced_erase(_device: &Path, _password: &str) -> Result<FirmwareEraseResult, CoreError> {
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::AtaEnhancedErase,
         success: true,
@@ -75,6 +74,6 @@ pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareErase
     })
 }
 
-pub fn detect_hpa_dco(device: &Path) -> Result<HpaInfo, CoreError> {
+pub fn detect_hpa_dco(_device: &Path) -> Result<HpaInfo, CoreError> {
     Ok(HpaInfo { hpa_enabled: false, dco_enabled: false })
 }

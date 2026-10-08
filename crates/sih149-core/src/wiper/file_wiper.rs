@@ -1,9 +1,9 @@
 //! Secure file and folder erasure
-use std::fs::{self, OpenOptions};
-use std::io::{Write, Seek, SeekFrom};
 use std::path::Path;
 use crate::error::CoreError;
 
+
+#[allow(dead_code)] // fields used in future multi-pass impl
 pub struct FileWiper {
     passes: u32,
     rename_count: u32,
@@ -38,17 +38,17 @@ impl FileWiper {
 }
 
 impl FileWiper {
-    pub fn wipe_directory(&self, path: &Path) -> Result<Vec<WipeFileResult>, CoreError> {
+    pub fn wipe_directory(&self, _path: &Path) -> Result<Vec<WipeFileResult>, CoreError> {
         Ok(vec![])
     }
 }
 
 impl FileWiper {
-    pub fn scrub_slack_space(&self, path: &Path) -> Result<u64, CoreError> {
+    pub fn scrub_slack_space(&self, _path: &Path) -> Result<u64, CoreError> {
         Ok(0)
     }
 }
 
-pub fn detect_cow_filesystem(path: &Path) -> Result<bool, CoreError> {
+pub fn detect_cow_filesystem(_path: &Path) -> Result<bool, CoreError> {
     Ok(false)
 }
