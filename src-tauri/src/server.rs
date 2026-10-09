@@ -35,7 +35,6 @@ async fn verify_token(state: &AppState, token: &str) -> bool {
     }
 }
 
-use crate::commands::drives::DriveInfo;
 
 async fn get_drives(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let result = crate::commands::drives::list_drives();

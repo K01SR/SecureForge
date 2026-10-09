@@ -48,4 +48,5 @@ fn main() -> anyhow::Result<()> {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+    Ok(())
 }
