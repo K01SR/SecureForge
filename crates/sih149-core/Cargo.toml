@@ -23,3 +23,15 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 chrono = "0.4.45"
+
+[[test]]
+name = "test_carver"
+path = "../../tests/integration/test_carver.rs"
+
+[[test]]
+name = "test_wiper"
+path = "../../tests/integration/test_wiper.rs"
+
+[[test]]
+name = "test_pipeline"
+path = "../../tests/integration/test_pipeline.rs"
