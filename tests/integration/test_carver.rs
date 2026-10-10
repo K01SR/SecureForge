@@ -12,3 +12,10 @@ pub fn create_test_image(path: &Path, size_mb: usize) -> std::io::Result<()> {
     file.set_len((size_mb * 1024 * 1024) as u64)?;
     Ok(())
 }
+
+pub fn plant_file_at_offset(image_path: &Path, file_bytes: &[u8], offset: u64) -> std::io::Result<()> {
+    use std::os::unix::fs::FileExt;
+    let file = fs::OpenOptions::new().write(true).open(image_path)?;
+    file.write_at(file_bytes, offset)?;
+    Ok(())
+}
