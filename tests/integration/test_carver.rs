@@ -19,3 +19,10 @@ pub fn plant_file_at_offset(image_path: &Path, file_bytes: &[u8], offset: u64) -
     file.write_at(file_bytes, offset)?;
     Ok(())
 }
+
+pub fn jpeg_test_bytes() -> Vec<u8> {
+    vec![
+        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01, 0x00,
+        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9
+    ]
+}
