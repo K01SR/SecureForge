@@ -36,3 +36,7 @@ pub fn png_test_bytes() -> Vec<u8> {
         0x00, 0x00, 0x00, 0x00, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82
     ]
 }
+
+pub fn pdf_test_bytes() -> Vec<u8> {
+    b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n%%EOF\n".to_vec()
+}
