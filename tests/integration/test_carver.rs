@@ -65,3 +65,13 @@ fn test_entropy_empty() {
     let e = calculate_entropy(&zeros);
     assert!(e < 0.1, "Entropy of zeros should be near 0");
 }
+
+#[test]
+fn test_entropy_random() {
+    use std::fs::File;
+    use std::io::Read;
+    let mut random_bytes = vec![0u8; 1024];
+    File::open("/dev/urandom").unwrap().read_exact(&mut random_bytes).unwrap();
+    let e = calculate_entropy(&random_bytes);
+    assert!(e > 7.0, "Entropy of random bytes should be > 7.0");
+}
