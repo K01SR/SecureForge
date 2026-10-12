@@ -49,3 +49,12 @@ pub fn sqlite_test_bytes() -> Vec<u8> {
     bytes[17] = 0x00;
     bytes
 }
+
+#[test]
+fn test_load_builtin_signatures() {
+    let sigs = load_builtin_signatures();
+    assert!(sigs.len() > 10, "Should have more than 10 builtin signatures");
+    for sig in sigs {
+        assert!(!sig.header.is_empty(), "Signature {} has empty header", sig.name);
+    }
+}
