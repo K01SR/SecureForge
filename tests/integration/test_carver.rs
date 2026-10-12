@@ -40,3 +40,12 @@ pub fn png_test_bytes() -> Vec<u8> {
 pub fn pdf_test_bytes() -> Vec<u8> {
     b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n%%EOF\n".to_vec()
 }
+
+pub fn sqlite_test_bytes() -> Vec<u8> {
+    let mut bytes = vec![0; 512];
+    let header = b"SQLite format 3\0";
+    bytes[0..16].copy_from_slice(header);
+    bytes[16] = 0x10; // Page size 4096 (0x1000)
+    bytes[17] = 0x00;
+    bytes
+}
