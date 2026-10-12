@@ -58,3 +58,10 @@ fn test_load_builtin_signatures() {
         assert!(!sig.header.is_empty(), "Signature {} has empty header", sig.name);
     }
 }
+
+#[test]
+fn test_entropy_empty() {
+    let zeros = vec![0u8; 1024];
+    let e = calculate_entropy(&zeros);
+    assert!(e < 0.1, "Entropy of zeros should be near 0");
+}
