@@ -75,3 +75,10 @@ fn test_entropy_random() {
     let e = calculate_entropy(&random_bytes);
     assert!(e > 7.0, "Entropy of random bytes should be > 7.0");
 }
+
+#[test]
+fn test_entropy_text() {
+    let text = b"This is some simple ASCII text meant to test the entropy calculator. It should fall in the middle range.";
+    let e = calculate_entropy(text);
+    assert!(e > 3.0 && e < 5.0, "Entropy of text should be between 3.0 and 5.0 (was {})", e);
+}
