@@ -82,3 +82,16 @@ fn test_entropy_text() {
     let e = calculate_entropy(text);
     assert!(e > 3.0 && e < 5.0, "Entropy of text should be between 3.0 and 5.0 (was {})", e);
 }
+
+#[test]
+fn test_jpeg_header_detection() {
+    let path = PathBuf::from("/tmp/test_jpeg_detect.dd");
+    create_test_image(&path, 1).unwrap();
+    plant_file_at_offset(&path, &jpeg_test_bytes(), 0).unwrap();
+    let mut file = fs::File::open(&path).unwrap();
+    use std::io::Read;
+    let mut buf = [0u8; 3];
+    file.read_exact(&mut buf).unwrap();
+    assert_eq!(buf, [0xFF, 0xD8, 0xFF]);
+    let _ = fs::remove_file(path);
+}
