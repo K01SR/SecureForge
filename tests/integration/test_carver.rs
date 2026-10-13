@@ -95,3 +95,16 @@ fn test_jpeg_header_detection() {
     assert_eq!(buf, [0xFF, 0xD8, 0xFF]);
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn test_png_header_detection() {
+    let path = PathBuf::from("/tmp/test_png_detect.dd");
+    create_test_image(&path, 1).unwrap();
+    plant_file_at_offset(&path, &png_test_bytes(), 0).unwrap();
+    let mut file = fs::File::open(&path).unwrap();
+    use std::io::Read;
+    let mut buf = [0u8; 8];
+    file.read_exact(&mut buf).unwrap();
+    assert_eq!(&buf, b"\x89PNG\x0D\x0A\x1A\x0A");
+    let _ = fs::remove_file(path);
+}
