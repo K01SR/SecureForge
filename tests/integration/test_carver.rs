@@ -108,3 +108,17 @@ fn test_png_header_detection() {
     assert_eq!(&buf, b"\x89PNG\x0D\x0A\x1A\x0A");
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn test_raw_image_source_sector_read() {
+    use sih149_core::disk::DiskSource;
+    let path = PathBuf::from("/tmp/test_sector_read.dd");
+    create_test_image(&path, 1).unwrap();
+    let src_res = RawImageSource::new(&path);
+    if let Ok(mut src) = src_res {
+        let mut buf = vec![0u8; 512];
+        let read = src.read_sector(0, &mut buf).unwrap();
+        assert_eq!(read, 512);
+    }
+    let _ = fs::remove_file(path);
+}
