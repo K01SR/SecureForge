@@ -122,3 +122,16 @@ fn test_raw_image_source_sector_read() {
     }
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn test_hash_chain_append_and_verify() {
+    use sih149_core::audit::hashchain::HashChain;
+    let path = PathBuf::from("/tmp/test_hashchain_append.db");
+    let _ = fs::remove_file(&path);
+    let mut chain = HashChain::new(&path).unwrap();
+    chain.append_entry("System startup", "system", "info").unwrap();
+    chain.append_entry("User login", "user1", "auth").unwrap();
+    chain.append_entry("File wiped", "user1", "action").unwrap();
+    assert!(chain.verify_integrity().unwrap());
+    let _ = fs::remove_file(path);
+}
