@@ -189,3 +189,18 @@ max_size = 20000000
     
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn test_case_database_create_and_query() {
+    use sih149_core::db::queries::{create_case, get_all_cases};
+    use rusqlite::Connection;
+    let conn = Connection::open_in_memory().unwrap();
+    sih149_core::db::schema::init_db(&conn).unwrap();
+    
+    let case_id = create_case(&conn, "Test Case 001", "Investigator A", "Desc").unwrap();
+    let cases = get_all_cases(&conn).unwrap();
+    
+    assert_eq!(cases.len(), 1);
+    assert_eq!(cases[0].id, case_id);
+    assert_eq!(cases[0].name, "Test Case 001");
+}
