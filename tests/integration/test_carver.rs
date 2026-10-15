@@ -135,3 +135,20 @@ fn test_hash_chain_append_and_verify() {
     assert!(chain.verify_integrity().unwrap());
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn test_hash_chain_tamper_detection() {
+    use sih149_core::audit::hashchain::HashChain;
+    use rusqlite::Connection;
+    let path = PathBuf::from("/tmp/test_hashchain_tamper.db");
+    let _ = fs::remove_file(&path);
+    let mut chain = HashChain::new(&path).unwrap();
+    chain.append_entry("Entry 1", "sys", "info").unwrap();
+    chain.append_entry("Entry 2", "sys", "info").unwrap();
+    
+    let conn = Connection::open(&path).unwrap();
+    conn.execute("UPDATE audit_log SET message = 'Tampered' WHERE id = 1", []).unwrap();
+    
+    assert!(!chain.verify_integrity().unwrap());
+    let _ = fs::remove_file(path);
+}
