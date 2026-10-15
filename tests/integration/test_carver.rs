@@ -152,3 +152,40 @@ fn test_hash_chain_tamper_detection() {
     assert!(!chain.verify_integrity().unwrap());
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn test_toml_signature_loader() {
+    use sih149_core::plugins::toml_loader::load_signatures_from_toml;
+    let toml_content = r#"
+[[signatures]]
+name = "JPEG"
+header = "FFD8FFE0"
+footer = "FFD9"
+extension = "jpg"
+category = "image"
+max_size = 5000000
+
+[[signatures]]
+name = "PNG"
+header = "89504E470D0A1A0A"
+extension = "png"
+category = "image"
+max_size = 10000000
+
+[[signatures]]
+name = "PDF"
+header = "255044462D"
+footer = "2525454F46"
+extension = "pdf"
+category = "document"
+max_size = 20000000
+    "#;
+    let path = PathBuf::from("/tmp/test_sigs.toml");
+    fs::write(&path, toml_content).unwrap();
+    
+    let sigs = load_signatures_from_toml(&path).unwrap();
+    assert_eq!(sigs.len(), 3);
+    assert_eq!(sigs[0].name, "JPEG");
+    
+    let _ = fs::remove_file(path);
+}
