@@ -204,3 +204,30 @@ fn test_case_database_create_and_query() {
     assert_eq!(cases[0].id, case_id);
     assert_eq!(cases[0].name, "Test Case 001");
 }
+
+#[test]
+fn test_report_manifest_save_load() {
+    use serde::{Serialize, Deserialize};
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct ReportManifest {
+        case_id: i64,
+        report_name: String,
+        files_carved: usize,
+    }
+    
+    let manifest = ReportManifest {
+        case_id: 42,
+        report_name: "Final Report".to_string(),
+        files_carved: 1337,
+    };
+    
+    let path = PathBuf::from("/tmp/test_manifest.json");
+    let json = serde_json::to_string(&manifest).unwrap();
+    fs::write(&path, json).unwrap();
+    
+    let loaded_json = fs::read_to_string(&path).unwrap();
+    let loaded: ReportManifest = serde_json::from_str(&loaded_json).unwrap();
+    
+    assert_eq!(manifest, loaded);
+    let _ = fs::remove_file(path);
+}
