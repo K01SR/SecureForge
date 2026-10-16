@@ -10,3 +10,12 @@ fn test_zero_pattern() {
     zero_fill(&mut buf);
     assert!(buf.iter().all(|&b| b == 0x00));
 }
+
+#[test]
+fn test_random_pattern_entropy() {
+    use sih149_core::carver::entropy::calculate_entropy;
+    let mut buf = vec![0x00; 1024];
+    random_fill(&mut buf);
+    let entropy = calculate_entropy(&buf);
+    assert!(entropy > 7.0, "Entropy should be high for random pattern");
+}
