@@ -19,3 +19,9 @@ fn test_random_pattern_entropy() {
     let entropy = calculate_entropy(&buf);
     assert!(entropy > 7.0, "Entropy should be high for random pattern");
 }
+
+#[test]
+fn test_dod3_pass_count() {
+    let passes = get_dod_3pass_sequence();
+    assert_eq!(passes.len(), 3);
+}
