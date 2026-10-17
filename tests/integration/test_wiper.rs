@@ -35,3 +35,11 @@ fn test_pattern_no_two_passes_identical() {
     passes[1](&mut buf2);
     assert_ne!(buf1, buf2, "Consecutive passes should differ");
 }
+
+#[test]
+fn test_file_wiper_cow_detection() {
+    use sih149_core::wiper::file_wiper::detect_cow_filesystem;
+    let path = std::path::Path::new("/tmp");
+    let is_cow = detect_cow_filesystem(path).unwrap_or(false);
+    assert!(!is_cow, "/tmp is typically not CoW");
+}
