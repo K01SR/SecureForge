@@ -25,3 +25,13 @@ fn test_dod3_pass_count() {
     let passes = get_dod_3pass_sequence();
     assert_eq!(passes.len(), 3);
 }
+
+#[test]
+fn test_pattern_no_two_passes_identical() {
+    let mut buf1 = vec![0u8; 512];
+    let mut buf2 = vec![0u8; 512];
+    let passes = get_dod_3pass_sequence();
+    passes[0](&mut buf1);
+    passes[1](&mut buf2);
+    assert_ne!(buf1, buf2, "Consecutive passes should differ");
+}
