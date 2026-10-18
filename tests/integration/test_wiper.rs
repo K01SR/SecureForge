@@ -43,3 +43,11 @@ fn test_file_wiper_cow_detection() {
     let is_cow = detect_cow_filesystem(path).unwrap_or(false);
     assert!(!is_cow, "/tmp is typically not CoW");
 }
+
+#[test]
+fn test_wipe_verification_on_zeroed_data() {
+    let buf = vec![0u8; 1024];
+    let mut cursor = std::io::Cursor::new(buf);
+    let verified = verify_wipe(&mut cursor, 1024).unwrap();
+    assert!(verified, "Should verify clean zeroed data");
+}
