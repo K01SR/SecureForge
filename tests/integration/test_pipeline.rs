@@ -22,3 +22,15 @@ fn test_report_gen_help() {
         .status().unwrap();
     assert!(status.success());
 }
+
+#[test]
+fn test_classify_help() {
+    if !python3_available() { return; }
+    let root = get_workspace_root();
+    let script = root.join("pipeline/classify.py");
+    if !script.exists() { return; }
+    let status = Command::new("python3")
+        .arg(&script).arg("--help")
+        .status().unwrap();
+    assert!(status.success());
+}
