@@ -10,3 +10,15 @@ pub fn python3_available() -> bool {
 pub fn get_workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
 }
+
+#[test]
+fn test_report_gen_help() {
+    if !python3_available() { return; }
+    let root = get_workspace_root();
+    let script = root.join("pipeline/report_gen.py");
+    if !script.exists() { return; }
+    let status = Command::new("python3")
+        .arg(&script).arg("--help")
+        .status().unwrap();
+    assert!(status.success());
+}
