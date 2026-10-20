@@ -46,3 +46,20 @@ fn test_timestamp_help() {
         .status().unwrap();
     assert!(status.success());
 }
+
+#[test]
+fn test_classify_empty_dir() {
+    if !python3_available() { return; }
+    let root = get_workspace_root();
+    let script = root.join("pipeline/classify.py");
+    if !script.exists() { return; }
+    
+    let temp_dir = std::env::temp_dir().join(format!("secforge_test_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+    let output = Command::new("python3")
+        .arg(&script).arg("--scan-dir").arg(&temp_dir)
+        .output().unwrap();
+        
+    assert!(output.status.success());
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
