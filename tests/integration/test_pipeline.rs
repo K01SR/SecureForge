@@ -63,3 +63,27 @@ fn test_classify_empty_dir() {
     assert!(output.status.success());
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_classify_with_file() {
+    if !python3_available() { return; }
+    let root = get_workspace_root();
+    let script = root.join("pipeline/classify.py");
+    if !script.exists() { return; }
+    
+    let temp_dir = std::env::temp_dir().join(format!("secforge_test_file_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+    let file_path = temp_dir.join("test.txt");
+    std::fs::write(&file_path, "Hello world").unwrap();
+    
+    let output = Command::new("python3")
+        .arg(&script).arg("--scan-dir").arg(&temp_dir)
+        .output().unwrap();
+        
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.is_empty() {
+        assert!(stdout.contains("path") || stdout.contains("test.txt"));
+    }
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
