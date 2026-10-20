@@ -87,3 +87,17 @@ fn test_classify_with_file() {
     }
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_report_gen_missing_input() {
+    if !python3_available() { return; }
+    let root = get_workspace_root();
+    let script = root.join("pipeline/report_gen.py");
+    if !script.exists() { return; }
+    
+    let output = Command::new("python3")
+        .arg(&script)
+        .output().unwrap();
+        
+    assert!(!output.status.success());
+}
