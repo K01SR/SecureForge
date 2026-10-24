@@ -1,12 +1,22 @@
-//! Optional HTTP/HTTPS server mode.
-//!
-//! When launched with `sih149 --mode server`, this module starts
-//! an axum web server that serves the React frontend as static files
-//! and exposes the same IPC commands as REST API endpoints.
-//!
-//! Endpoints mirror Tauri commands:
-//! - GET  /api/drives
-//! - POST /api/wipe
-//! - POST /api/recover
-//! - GET  /api/reports
-//! - POST /api/auth/expert
+//! SecureForge optional web server mode
+//! Exposes the same operations as Tauri IPC via REST API over HTTPS
+//! Allows browser-based access on local network (e.g. forensic workstation)
+
+use axum::{
+    Router,
+    routing::{get, post},
+    Json, extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+};
+use std::sync::Arc;
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
+use serde::{Serialize, Deserialize};
+
+pub struct AppState {
+    pub host: String,
+    pub port: u16,
+    pub require_auth: bool,
+    pub api_token: Option<String>,
+}
