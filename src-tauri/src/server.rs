@@ -20,3 +20,7 @@ pub struct AppState {
     pub require_auth: bool,
     pub api_token: Option<String>,
 }
+
+async fn health() -> impl IntoResponse {
+    Json(serde_json::json!({"status": "ok", "version": env!("CARGO_PKG_VERSION"), "mode": "server"}))
+}
