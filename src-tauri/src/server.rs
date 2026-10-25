@@ -52,7 +52,7 @@ struct WipeRequest { device_path: String, method: String, verify: bool }
 struct WipeResponse { job_id: String, status: String, message: String }
 
 async fn post_wipe(State(state): State<Arc<AppState>>, Json(req): Json<WipeRequest>) -> impl IntoResponse {
-    let job_id = uuid::Uuid::new_v4().to_string();
+    let job_id = "job-".to_string() + &std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
     // Simulate spawning task
     let response = WipeResponse {
         job_id,
@@ -60,4 +60,14 @@ async fn post_wipe(State(state): State<Arc<AppState>>, Json(req): Json<WipeReque
         message: "Wipe task started successfully".to_string()
     };
     (StatusCode::ACCEPTED, Json(response))
+}
+
+use axum::extract::Path;
+
+async fn get_job_status(State(state): State<Arc<AppState>>, Path(job_id): Path<String>) -> impl IntoResponse {
+    Json(serde_json::json!({
+        "job_id": job_id,
+        "status": "in_progress",
+        "progress": 50
+    }))
 }
