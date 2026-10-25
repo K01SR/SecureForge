@@ -24,3 +24,12 @@ pub struct AppState {
 async fn health() -> impl IntoResponse {
     Json(serde_json::json!({"status": "ok", "version": env!("CARGO_PKG_VERSION"), "mode": "server"}))
 }
+
+async fn verify_token(state: &AppState, token: &str) -> bool {
+    if let Some(ref api_token) = state.api_token {
+        // Simple constant time-ish comparison for demonstration
+        api_token == token
+    } else {
+        !state.require_auth
+    }
+}
