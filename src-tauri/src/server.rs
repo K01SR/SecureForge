@@ -44,3 +44,20 @@ async fn get_drives(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"status": "error", "message": e}))),
     }
 }
+
+#[derive(Deserialize)]
+struct WipeRequest { device_path: String, method: String, verify: bool }
+
+#[derive(Serialize)]
+struct WipeResponse { job_id: String, status: String, message: String }
+
+async fn post_wipe(State(state): State<Arc<AppState>>, Json(req): Json<WipeRequest>) -> impl IntoResponse {
+    let job_id = uuid::Uuid::new_v4().to_string();
+    // Simulate spawning task
+    let response = WipeResponse {
+        job_id,
+        status: "started".to_string(),
+        message: "Wipe task started successfully".to_string()
+    };
+    (StatusCode::ACCEPTED, Json(response))
+}
