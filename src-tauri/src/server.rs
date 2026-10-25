@@ -12,6 +12,7 @@ use axum::{
 use std::sync::Arc;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+use crate::commands::drives::DriveInfo;
 use serde::{Serialize, Deserialize};
 
 pub struct AppState {
@@ -31,5 +32,15 @@ async fn verify_token(state: &AppState, token: &str) -> bool {
         api_token == token
     } else {
         !state.require_auth
+    }
+}
+
+use crate::commands::drives::DriveInfo;
+
+async fn get_drives(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let result = crate::commands::drives::list_drives();
+    match result {
+        Ok(drives) => (StatusCode::OK, Json(serde_json::json!({"status": "success", "data": drives}))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"status": "error", "message": e}))),
     }
 }
