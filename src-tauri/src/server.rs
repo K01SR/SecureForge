@@ -83,3 +83,14 @@ async fn post_scan(State(state): State<Arc<AppState>>, Json(req): Json<ScanReque
         "message": "Scan task started successfully"
     })))
 }
+
+pub fn build_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .route("/api/drives", get(get_drives))
+        .route("/api/wipe", post(post_wipe))
+        .route("/api/scan", post(post_scan))
+        .route("/api/jobs/:id", get(get_job_status))
+        .with_state(state)
+        .layer(tower_http::cors::CorsLayer::permissive())
+}
