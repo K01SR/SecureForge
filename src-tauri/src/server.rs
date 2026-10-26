@@ -71,3 +71,15 @@ async fn get_job_status(State(state): State<Arc<AppState>>, Path(job_id): Path<S
         "progress": 50
     }))
 }
+
+#[derive(Deserialize)]
+struct ScanRequest { source_path: String, output_dir: String, file_types: Vec<String>, min_confidence: u8 }
+
+async fn post_scan(State(state): State<Arc<AppState>>, Json(req): Json<ScanRequest>) -> impl IntoResponse {
+    let job_id = "scan-".to_string() + &std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
+    (StatusCode::ACCEPTED, Json(serde_json::json!({
+        "job_id": job_id,
+        "status": "started",
+        "message": "Scan task started successfully"
+    })))
+}
