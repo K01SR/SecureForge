@@ -94,3 +94,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .with_state(state)
         .layer(tower_http::cors::CorsLayer::permissive())
 }
+
+pub async fn start_server(host: String, port: u16, api_token: Option<String>) -> anyhow::Result<()> {
+    let state = Arc::new(AppState { host: host.clone(), port, require_auth: api_token.is_some(), api_token });
+    let router = build_router(state);
+    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
+    tracing::info!("SecureForge web server listening on http://{}", addr);
+    let listener = TcpListener::bind(addr).await?;
+    axum::serve(listener, router).await?;
+    Ok(())
+}
