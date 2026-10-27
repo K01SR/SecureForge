@@ -7,6 +7,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod server;
 
 use commands::drives::*;
 use commands::wiper::*;
@@ -14,8 +15,18 @@ use commands::carver::*;
 use commands::auth::*;
 use commands::reports::*;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     tracing::info!("SecureForge Desktop v{}", env!("CARGO_PKG_VERSION"));
+    
+    if std::env::args().any(|a| a == "--server") {
+        let port: u16 = std::env::args()
+            .find(|a| a.starts_with("--port="))
+            .and_then(|a| a.split('=').nth(1).map(|s| s.parse().ok()).flatten())
+            .unwrap_or(7878);
+        let host = "127.0.0.1".to_string();
+        tokio::runtime::Runtime::new()?.block_on(crate::server::start_server(host, port, None))?;
+        return Ok(());
+    }
     
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
