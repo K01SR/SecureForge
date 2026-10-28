@@ -1,16 +1,5 @@
 # SecureForge User Manual
 
-## Table of Contents
+## 1. Introduction & Overview
+SecureForge is an advanced, cross-platform utility combining secure data erasure and forensic file recovery. Tailored for enterprise and forensic professionals, it surpasses conventional utilities (like DBAN or PhotoRec) by offering native NVMe Crypto Erase, detailed entropy-based confidence scoring, and cryptographic chain-of-custody for audit logs.
 
-1. Getting Started
-2. Dashboard Overview
-3. Secure Drive Erasure
-4. Secure File & Folder Erasure
-5. Forensic File Recovery
-6. Reports & Audit Logs
-7. Expert Mode
-8. Plugin Development
-9. Live ISO Usage
-10. Troubleshooting
-
-<!-- TODO: Complete user manual content -->
