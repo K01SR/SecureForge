@@ -10,3 +10,8 @@ SecureForge is an advanced, cross-platform utility combining secure data erasure
 - Install Python deps: `pip install -r pipeline/requirements.txt`
 First Launch: Run the UI via `cargo tauri dev` or `sih149 --help` for CLI.
 
+## 3. Quick Start Guide
+1. **Check Drives:** `sih149 info`
+2. **Wipe a USB:** `sih149 wipe --device /dev/sdb --method dod3`
+3. **Recover Files:** `sih149 recover --source disk.dd --output ./out`
+
