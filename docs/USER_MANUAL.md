@@ -28,3 +28,6 @@ First Launch: Run the UI via `cargo tauri dev` or `sih149 --help` for CLI.
 - **Reports:** View tamper-evident audit logs and export PDF certificates.
 - **Expert Mode:** Requires Argon2id password; unlocks raw ATA/NVMe command passthrough.
 
+## 6. Live ISO Guide
+Boot directly from a USB stick into a secure Kiosk mode. Ensure Secure Boot is configured if required. Connect USB storage for saving HTML/PDF certificates before rebooting. Networking is disabled by default to maintain air-gapped security but can be toggled via the network toggle.
+
