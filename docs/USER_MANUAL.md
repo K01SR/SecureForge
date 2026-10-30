@@ -21,3 +21,10 @@ First Launch: Run the UI via `cargo tauri dev` or `sih149 --help` for CLI.
 - `sih149 recover --source PATH --output DIR [--types jpg,png,pdf] [--min-confidence 50]`: Recover files with filters.
 - `sih149 report [--list] [--case-id ID] [--export PATH] [--format pdf|json|html|zip]`: Generate audit reports.
 
+## 5. Desktop GUI Guide
+- **Dashboard:** Visualize drive health and reading drive entropy heatmap.
+- **Sanitizer:** Step-by-step wizard for selecting wiping methods and targeting specific drives.
+- **Recovery:** Start scans, filter results interactively, and preview metadata.
+- **Reports:** View tamper-evident audit logs and export PDF certificates.
+- **Expert Mode:** Requires Argon2id password; unlocks raw ATA/NVMe command passthrough.
+
