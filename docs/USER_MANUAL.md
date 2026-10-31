@@ -31,3 +31,15 @@ First Launch: Run the UI via `cargo tauri dev` or `sih149 --help` for CLI.
 ## 6. Live ISO Guide
 Boot directly from a USB stick into a secure Kiosk mode. Ensure Secure Boot is configured if required. Connect USB storage for saving HTML/PDF certificates before rebooting. Networking is disabled by default to maintain air-gapped security but can be toggled via the network toggle.
 
+## 7. Sanitization Methods Reference
+| Method | Standard | Passes | Best For | SSD Safe? |
+|---|---|---|---|---|
+| Zero Fill | Basic | 1 | Quick wiping | Yes |
+| Random | General | 1 | Basic obfuscation | Yes |
+| DoD 3-pass | DoD 5220.22-M | 3 | Legacy HDDs | No |
+| DoD 7-pass | DoD 5220.22-M (ECE) | 7 | High-security HDDs | No |
+| Gutmann | Peter Gutmann | 35 | Extreme paranoia | No |
+| NVMe Crypto Erase | NVMe Spec | 1 (Key wipe) | Modern NVMe | Yes |
+| ATA Secure Erase | ATA Spec | 1 | Legacy SSDs/HDDs | Yes |
+| ATA Enhanced Erase | ATA Spec | 1 | Legacy SSDs/HDDs | Yes |
+
