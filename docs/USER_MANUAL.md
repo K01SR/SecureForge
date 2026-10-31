@@ -49,3 +49,9 @@ Interpreting results relies heavily on **Confidence Scores** (0-100%).
 - **50-89%:** Partial structure match or high entropy blocks.
 - **<50%:** Low confidence, likely corrupted or false positive. Use the entropy heatmap to identify completely randomized (wiped) sectors versus fragmented files.
 
+## 9. Troubleshooting
+- **Drive shows frozen (ATA):** Suspend and wake the system to unfreeze the BIOS lock.
+- **NVMe doesn't support crypto erase:** Fallback to standard block overwrite (Zero fill).
+- **Python pipeline fails:** Ensure virtualenv is active and dependencies are correctly installed.
+- **Recovered files corrupted:** Try lowering the `--min-confidence` threshold to carve partial streams.
+
