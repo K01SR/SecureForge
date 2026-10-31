@@ -43,3 +43,9 @@ Boot directly from a USB stick into a secure Kiosk mode. Ensure Secure Boot is c
 | ATA Secure Erase | ATA Spec | 1 | Legacy SSDs/HDDs | Yes |
 | ATA Enhanced Erase | ATA Spec | 1 | Legacy SSDs/HDDs | Yes |
 
+## 8. File Recovery Guide
+Interpreting results relies heavily on **Confidence Scores** (0-100%).
+- **90-100%:** Exact signature match, valid structure.
+- **50-89%:** Partial structure match or high entropy blocks.
+- **<50%:** Low confidence, likely corrupted or false positive. Use the entropy heatmap to identify completely randomized (wiped) sectors versus fragmented files.
+
