@@ -15,3 +15,9 @@ graph TD;
     Core --> DB[(SQLite Audit DB)]
 ```
 
+## 2. Core Engine (sih149-core)
+The Rust core implements rigorous safety bounds. Key components include:
+- `DiskSource`: Abstraction trait for block devices and raw images.
+- `WipePattern`: Trait defining PRNG streams for overwriting.
+Error handling utilizes `thiserror` for descriptive, bubbled errors. Public API surface is highly documented.
+
