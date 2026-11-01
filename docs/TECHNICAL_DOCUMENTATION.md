@@ -21,3 +21,6 @@ The Rust core implements rigorous safety bounds. Key components include:
 - `WipePattern`: Trait defining PRNG streams for overwriting.
 Error handling utilizes `thiserror` for descriptive, bubbled errors. Public API surface is highly documented.
 
+## 3. Pipeline IPC Protocol
+Communication between Rust and Python uses JSON Lines (JSONL) over `stdin`/`stdout`. Messages require an `id`, `method`, and `params`. Crash recovery involves Rust heartbeats monitoring Python PIDs, respawning workers automatically upon failure with clear exit codes.
+
