@@ -55,3 +55,8 @@ Interpreting results relies heavily on **Confidence Scores** (0-100%).
 - **Python pipeline fails:** Ensure virtualenv is active and dependencies are correctly installed.
 - **Recovered files corrupted:** Try lowering the `--min-confidence` threshold to carve partial streams.
 
+## 10. FAQ
+1. *Can I recover files after NVMe Crypto Erase?* No, the encryption key is destroyed.
+2. *Is it safe to run Gutmann on an SSD?* No, it causes unnecessary wear. Use Crypto Erase or Secure Erase.
+3. *Where are reports stored?* In `/var/log/sih149/` or user's AppData directory.
+
