@@ -24,3 +24,9 @@ Error handling utilizes `thiserror` for descriptive, bubbled errors. Public API 
 ## 3. Pipeline IPC Protocol
 Communication between Rust and Python uses JSON Lines (JSONL) over `stdin`/`stdout`. Messages require an `id`, `method`, and `params`. Crash recovery involves Rust heartbeats monitoring Python PIDs, respawning workers automatically upon failure with clear exit codes.
 
+## 4. Plugin System
+The Carving Engine supports a 3-tier hierarchy:
+1. **Rust Built-in:** Compiled, ultra-fast structural validation.
+2. **TOML Signatures:** User-extensible Magic Byte definitions loaded at runtime.
+3. **Lua Scripts:** Complex structural checks executed via `mlua` (hot-reloaded).
+
