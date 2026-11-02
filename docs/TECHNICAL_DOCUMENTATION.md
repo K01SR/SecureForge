@@ -33,3 +33,9 @@ The Carving Engine supports a 3-tier hierarchy:
 ## 5. Audit & Chain of Custody
 Every case generates a cryptographic hash chain. Actions are logged to SQLite. When exported, the entire chain is hashed (SHA-256) and time-stamped (RFC 3161). The final PDF report is PKI-signed, rendering it tamper-evident for courtroom proceedings.
 
+## 6. Security Model
+- **Threat Model:** Protect against accidental execution and malicious tampering of logs.
+- **Write-Blocking:** Software-level write-blocking during recovery mode.
+- **Expert Mode:** Gated by Argon2id hashed credentials to prevent accidental execution of destructive commands.
+- **Privileges:** Requires `root` or `CAP_SYS_ADMIN` for raw block device manipulation.
+
