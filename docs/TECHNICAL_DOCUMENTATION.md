@@ -30,3 +30,6 @@ The Carving Engine supports a 3-tier hierarchy:
 2. **TOML Signatures:** User-extensible Magic Byte definitions loaded at runtime.
 3. **Lua Scripts:** Complex structural checks executed via `mlua` (hot-reloaded).
 
+## 5. Audit & Chain of Custody
+Every case generates a cryptographic hash chain. Actions are logged to SQLite. When exported, the entire chain is hashed (SHA-256) and time-stamped (RFC 3161). The final PDF report is PKI-signed, rendering it tamper-evident for courtroom proceedings.
+
