@@ -39,3 +39,10 @@ Every case generates a cryptographic hash chain. Actions are logged to SQLite. W
 - **Expert Mode:** Gated by Argon2id hashed credentials to prevent accidental execution of destructive commands.
 - **Privileges:** Requires `root` or `CAP_SYS_ADMIN` for raw block device manipulation.
 
+## 7. Database Schema
+SQLite manages local metadata. Key tables:
+- `cases` (id, investigator, timestamp, status)
+- `carved_files` (id, case_id, hash, offset, size, confidence)
+- `audit_entries` (id, case_id, action, pre_hash, signature)
+Example query: `SELECT * FROM carved_files WHERE confidence > 80;`
+
