@@ -9,3 +9,7 @@ SecureForge aligns with NIST and IEEE 2883-2022 standards:
 - **Purge:** ATA Secure Erase, NVMe Crypto Erase (Cryptographic Erase).
 - **Destroy:** Not supported via software (requires physical destruction).
 
+## 3. Indian Legal Framework
+- **BSA Section 63:** Validates digital evidence via strictly enforced Chain of Custody hashes.
+- **IT Act Section 79A:** Conforms to Examiner of Electronic Evidence requirements by ensuring non-repudiation of generated audit logs.
+
