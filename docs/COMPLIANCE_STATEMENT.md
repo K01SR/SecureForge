@@ -13,3 +13,10 @@ SecureForge aligns with NIST and IEEE 2883-2022 standards:
 - **BSA Section 63:** Validates digital evidence via strictly enforced Chain of Custody hashes.
 - **IT Act Section 79A:** Conforms to Examiner of Electronic Evidence requirements by ensuring non-repudiation of generated audit logs.
 
+## 4. Certificate of Sanitization Fields
+The generated PDF includes:
+- Organization Details, Operator Name
+- Drive Serial, Model, Capacity, Firmware
+- Sanitization Method, Start/End Time
+- Verification Result, Final SHA-256 Hash of drive
+
