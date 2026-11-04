@@ -20,3 +20,7 @@ The generated PDF includes:
 - Sanitization Method, Start/End Time
 - Verification Result, Final SHA-256 Hash of drive
 
+## 5. Limitations & Disclaimers
+- **CoW Filesystems:** Erasing individual files on Btrfs/ZFS is not guaranteed due to snapshots and CoW mechanisms.
+- **Bad Sectors:** Disks with reallocated sectors may retain data in unmapped regions. Physical destruction is advised for high-security environments.
+
