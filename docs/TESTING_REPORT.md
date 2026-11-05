@@ -15,3 +15,7 @@
 | Wipe | NVMe Crypto Erase | Ubuntu 22.04 | PASS |
 | Wipe | DoD 3-Pass | VirtualBox | PASS |
 
+## 3. Known Issues & Mitigations
+- **Issue:** ATA unfreeze command fails on certain older motherboards.
+- **Mitigation:** Hot-plug the SATA drive post-boot or suspend/resume the host machine before executing sanitization.
+
