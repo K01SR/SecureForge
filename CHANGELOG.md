@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Added sections: Core Engine, CLI, Tauri Desktop, Python Pipeline, Live ISO, Documentation
+- Implemented robust file carving with entropy checking and signature matching
+- Implemented diverse wiping algorithms (Gutmann, DoD, NVMe specific)
+- Comprehensive User, Technical, and Compliance documentation
+
+
 
 ### Added
 - Project scaffolding and repository structure
@@ -18,3 +24,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live ISO build system
 - Documentation templates
 - CI/CD configuration
+
+
