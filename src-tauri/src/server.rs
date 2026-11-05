@@ -56,6 +56,7 @@ struct ScanRequest {
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
 /// Simple constant-time-ish bearer token check.
+#[allow(dead_code)]
 fn verify_token(state: &AppState, token: &str) -> bool {
     match &state.api_token {
         Some(api_token) => {
