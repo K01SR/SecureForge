@@ -21,6 +21,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 
 /// Shared server state injected into every handler via `State<Arc<AppState>>`
+#[allow(dead_code)] // host/port reserved for admin endpoint and TLS binding display
 pub struct AppState {
     pub host: String,
     pub port: u16,
@@ -45,6 +46,7 @@ struct WipeResponse {
     message: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct ScanRequest {
     source_path: String,

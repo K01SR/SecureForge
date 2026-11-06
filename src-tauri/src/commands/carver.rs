@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // output_dir and min_confidence consumed by future scan engine
 pub struct ScanConfig {
     pub source_path: String,
     pub output_dir: String,
