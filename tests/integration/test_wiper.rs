@@ -54,7 +54,7 @@ fn test_wipe_verification_on_zeroed_data() {
     drop(file);
     
     let mut disk = RawImage::open(&path).unwrap();
-    let verified = verify_wipe(&mut disk, generate_zeros, 100).unwrap();
+    let verified = verify_wipe(&mut disk, generate_zeros, 100, false).unwrap();
     assert!(verified, "Should verify clean zeroed data");
     
     let _ = fs::remove_file(path);
