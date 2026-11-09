@@ -2,7 +2,15 @@ use crate::disk::DiskSource;
 use crate::error::Result;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::unix::io::AsRawFd;
 use std::path::Path;
+
+// BLKGETSIZE64 ioctl: returns device size in bytes (u64).
+// Defined by the Linux kernel; not exposed by std, so we call it via nix.
+nix::ioctl_read!(ioctl_blkgetsize64, 0x12, 114, u64);
+
+// BLKSSZGET ioctl: returns logical sector size in bytes (i32).
+nix::ioctl_read!(ioctl_blksszget, 0x12, 104, i32);
 
 /// A Linux block device reader/writer.
 pub struct BlockDevice {
@@ -19,15 +27,31 @@ impl BlockDevice {
             .write(true)
             .open(&path)?;
 
-        // For simplicity, we just use file metadata. 
-        // In reality, block devices need ioctl to get size.
-        let metadata = file.metadata()?;
-        let size = metadata.len();
-        
+        let fd = file.as_raw_fd();
+        let mut size: u64 = 0;
+        let mut sector_size: i32 = 512;
+
+        // Try the block-device ioctls first (this is the real device size).
+        // If they fail (e.g. path is a regular file, not a block device),
+        // fall back to file metadata so raw disk-image files still work.
+        let is_block_device = unsafe { ioctl_blkgetsize64(fd, &mut size) }.is_ok();
+        if !is_block_device {
+            size = file.metadata()?.len();
+        } else {
+            // Sector size ioctl is best-effort; 512 is a safe default if it fails.
+            let _ = unsafe { ioctl_blksszget(fd, &mut sector_size) };
+        }
+
+        if size == 0 {
+            return Err(crate::error::CoreError::Disk(
+                format!("Could not determine size of {:?} (ioctl and metadata both returned 0)", path.as_ref())
+            ));
+        }
+
         Ok(Self {
             file,
             size,
-            sector_size: 512,
+            sector_size: sector_size as u32,
         })
     }
 }
