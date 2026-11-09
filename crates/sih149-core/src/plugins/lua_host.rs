@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mlua::{prelude::*, LuaOptions, StdLib};
 use std::path::Path;
 use std::fs;
 use crate::error::CoreError;
@@ -31,7 +31,12 @@ impl LuaPluginHost {
     
     pub fn load_script(&mut self, script_path: &Path) -> Result<(), CoreError> {
         let script_source = fs::read_to_string(script_path).map_err(CoreError::Io)?;
-        let lua = Lua::new();
+        // SAFETY-CRITICAL: plugins are untrusted third-party scripts.
+        // Only load string/table/math — NOT io, os, or package (which allow
+        // filesystem access, process execution, and loading native libs).
+        let safe_libs = StdLib::STRING | StdLib::TABLE | StdLib::MATH;
+        let lua = Lua::new_with(safe_libs, LuaOptions::default())
+            .map_err(|e| CoreError::Parse(format!("Failed to init sandboxed Lua: {e}")))?;
         
         let globals = lua.globals();
         
@@ -120,7 +125,9 @@ impl LuaPluginHost {
             return Ok(true);
         }
         
-        let lua = Lua::new();
+        let safe_libs = StdLib::STRING | StdLib::TABLE | StdLib::MATH;
+        let lua = Lua::new_with(safe_libs, LuaOptions::default())
+            .map_err(|e| CoreError::Parse(format!("Failed to init sandboxed Lua: {e}")))?;
         let globals = lua.globals();
         
         let signature_func = lua.create_function(move |_lua, table: mlua::Table| {
@@ -135,8 +142,12 @@ impl LuaPluginHost {
         let validate_func: mlua::Function = result.get("validate")
             .map_err(|_| CoreError::Parse("validate function not found".to_string()))?;
             
-        let data_str = String::from_utf8_lossy(data).into_owned();
-        let is_valid: bool = validate_func.call(data_str)
+        // Pass raw bytes as a Lua string (Lua strings are byte arrays, not
+        // UTF-8 text) — from_utf8_lossy previously corrupted binary magic
+        // bytes (JPEG/PNG/ZIP headers) before the validator ever saw them.
+        let lua_bytes = lua.create_string(data)
+            .map_err(|e| CoreError::Parse(e.to_string()))?;
+        let is_valid: bool = validate_func.call(lua_bytes)
             .map_err(|e| CoreError::Parse(e.to_string()))?;
             
         Ok(is_valid)
