@@ -11,7 +11,8 @@ impl HashChain {
     pub fn new() -> Self {
         Self {
             entries: Vec::new(),
-            tip: "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            // SHA-256 hex digest is exactly 64 chars
+            tip: "0".repeat(64),
         }
     }
 
@@ -40,7 +41,7 @@ impl HashChain {
     }
     
     pub fn verify(&self) -> bool {
-        let mut expected_prev = "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let mut expected_prev = "0".repeat(64);
         for entry in &self.entries {
             if entry.prev_hash != expected_prev {
                 return false;

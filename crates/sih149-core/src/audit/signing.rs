@@ -30,7 +30,7 @@ pub struct ReportManifest {
     pub generated_at: String,
     pub case_id: String,
     pub chain_tip: String,
-    pub signed: bool,
+    pub hash_verified: bool,
 }
 
 impl ReportManifest {
@@ -41,7 +41,7 @@ impl ReportManifest {
             generated_at: chrono::Utc::now().to_rfc3339(),
             case_id,
             chain_tip,
-            signed: true,
+            hash_verified: true,
         }
     }
     
