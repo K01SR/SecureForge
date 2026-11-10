@@ -1,6 +1,12 @@
-//! Firmware-level secure erase commands
-//! Wraps hdparm and nvme-cli via subprocess
+//! Firmware-level secure erase commands.
+//! Wraps `hdparm` (ATA) and `nvme-cli` (NVMe) via subprocess.
+//!
+//! WARNING: every function here that performs an erase is genuinely
+//! destructive and irreversible against real hardware. Requires root
+//! (CAP_SYS_ADMIN) and the `hdparm`/`nvme-cli` packages installed.
 use std::path::Path;
+use std::process::Command;
+use std::time::Instant;
 use crate::error::CoreError;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,50 +36,155 @@ pub struct HpaInfo {
     pub dco_enabled: bool,
 }
 
-pub fn detect_nvme_capabilities(_device: &Path) -> Result<NvmeCapabilities, CoreError> {
-    Ok(NvmeCapabilities { sanitize_supported: true })
+fn run_command(cmd: &str, args: &[&str]) -> Result<(bool, String), CoreError> {
+    let output = Command::new(cmd)
+        .args(args)
+        .output()
+        .map_err(|e| CoreError::Wiper(format!("Failed to run {} {:?}: {} (is {} installed and are you running as root?)", cmd, args, e, cmd)))?;
+
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok((output.status.success(), combined))
 }
 
-pub fn nvme_crypto_erase(_device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+/// Checks the NVMe Sanitize log page for crypto-erase support.
+/// Parses `nvme id-ctrl` SANICAP bits via `nvme-cli`'s human-readable
+/// output — brittle against nvme-cli version differences; treat a `false`
+/// result conservatively (may be a parse miss, not definitive absence).
+pub fn detect_nvme_capabilities(device: &Path) -> Result<NvmeCapabilities, CoreError> {
+    let device_str = device.to_string_lossy();
+    let (ok, output) = run_command("nvme", &["id-ctrl", &device_str, "-H"])?;
+    if !ok {
+        return Err(CoreError::Wiper(format!("nvme id-ctrl failed: {}", output)));
+    }
+    // Human-readable id-ctrl output includes a line like:
+    // "[0:0] : 0x1  Crypto Erase Supported"
+    let sanitize_supported = output.to_lowercase().contains("crypto erase supported");
+    Ok(NvmeCapabilities { sanitize_supported })
+}
+
+/// NVMe Sanitize with Crypto Erase (sanact=2). Cryptographically destroys
+/// the media encryption key — data becomes unrecoverable even without
+/// overwriting every block, but only if the drive actually implements
+/// full-disk encryption at rest (verify via detect_nvme_capabilities first).
+pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+    let device_str = device.to_string_lossy();
+    let started = Instant::now();
+    let (success, output) = run_command("nvme", &["sanitize", &device_str, "--sanact=2"])?;
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::NvmeCryptoErase,
-        success: true,
-        command_output: String::new(),
-        duration_secs: 0,
+        success,
+        command_output: output,
+        duration_secs: started.elapsed().as_secs(),
     })
 }
 
-pub fn nvme_block_erase(_device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+/// NVMe Sanitize with Block Erase (sanact=1). Physically erases every
+/// block at the flash-translation-layer level. Slower than crypto erase
+/// but doesn't depend on the drive's encryption implementation.
+pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
+    let device_str = device.to_string_lossy();
+    let started = Instant::now();
+    let (success, output) = run_command("nvme", &["sanitize", &device_str, "--sanact=1"])?;
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::NvmeBlockErase,
-        success: true,
-        command_output: String::new(),
-        duration_secs: 0,
+        success,
+        command_output: output,
+        duration_secs: started.elapsed().as_secs(),
     })
 }
 
-pub fn ata_detect_frozen(_device: &Path) -> Result<bool, CoreError> {
-    Ok(false)
+/// Checks whether the ATA drive is in a "frozen" security state — BIOS/
+/// firmware sometimes freezes the security feature set at boot, which
+/// blocks secure-erase commands until the drive is power-cycled (not just
+/// rebooted) with no intervening freeze command from the OS.
+pub fn ata_detect_frozen(device: &Path) -> Result<bool, CoreError> {
+    let device_str = device.to_string_lossy();
+    let (ok, output) = run_command("hdparm", &["-I", &device_str])?;
+    if !ok {
+        return Err(CoreError::Wiper(format!("hdparm -I failed: {}", output)));
+    }
+    Ok(output.contains("frozen"))
 }
 
-pub fn ata_secure_erase(_device: &Path, _password: &str) -> Result<FirmwareEraseResult, CoreError> {
+/// ATA Security Erase (single pass, drive-internal). Requires setting a
+/// temporary security password first, per the ATA spec — hdparm handles
+/// both steps here as two calls.
+pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
+    let device_str = device.to_string_lossy();
+    let started = Instant::now();
+
+    let (set_ok, set_out) = run_command("hdparm", &[
+        "--user-master", "u", "--security-set-pass", password, &device_str
+    ])?;
+    if !set_ok {
+        return Ok(FirmwareEraseResult {
+            method: FirmwareMethod::AtaSecureErase,
+            success: false,
+            command_output: format!("security-set-pass failed: {}", set_out),
+            duration_secs: started.elapsed().as_secs(),
+        });
+    }
+
+    let (erase_ok, erase_out) = run_command("hdparm", &[
+        "--user-master", "u", "--security-erase", password, &device_str
+    ])?;
+
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::AtaSecureErase,
-        success: true,
-        command_output: String::new(),
-        duration_secs: 0,
+        success: erase_ok,
+        command_output: format!("{}\n{}", set_out, erase_out),
+        duration_secs: started.elapsed().as_secs(),
     })
 }
 
-pub fn ata_enhanced_erase(_device: &Path, _password: &str) -> Result<FirmwareEraseResult, CoreError> {
+/// ATA Enhanced Security Erase — writes a vendor-defined pattern to every
+/// user-addressable sector, including reallocated/reassigned sectors that
+/// plain Secure Erase can miss. Not all drives support the enhanced mode;
+/// check via `hdparm -I` for "supported: enhanced erase" before calling.
+pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
+    let device_str = device.to_string_lossy();
+    let started = Instant::now();
+
+    let (set_ok, set_out) = run_command("hdparm", &[
+        "--user-master", "u", "--security-set-pass", password, &device_str
+    ])?;
+    if !set_ok {
+        return Ok(FirmwareEraseResult {
+            method: FirmwareMethod::AtaEnhancedErase,
+            success: false,
+            command_output: format!("security-set-pass failed: {}", set_out),
+            duration_secs: started.elapsed().as_secs(),
+        });
+    }
+
+    let (erase_ok, erase_out) = run_command("hdparm", &[
+        "--user-master", "u", "--security-erase-enhanced", password, &device_str
+    ])?;
+
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::AtaEnhancedErase,
-        success: true,
-        command_output: String::new(),
-        duration_secs: 0,
+        success: erase_ok,
+        command_output: format!("{}\n{}", set_out, erase_out),
+        duration_secs: started.elapsed().as_secs(),
     })
 }
 
-pub fn detect_hpa_dco(_device: &Path) -> Result<HpaInfo, CoreError> {
-    Ok(HpaInfo { hpa_enabled: false, dco_enabled: false })
+/// Detects Host Protected Area / Device Configuration Overlay — hidden
+/// regions some drives reserve that standard erase commands don't always
+/// reach. Parsing is heuristic (hdparm's text output isn't a stable API);
+/// treat this as advisory, not a compliance guarantee.
+pub fn detect_hpa_dco(device: &Path) -> Result<HpaInfo, CoreError> {
+    let device_str = device.to_string_lossy();
+
+    let (n_ok, n_out) = run_command("hdparm", &["-N", &device_str])?;
+    let hpa_enabled = n_ok && n_out.contains("HPA is enabled");
+
+    let (dco_ok, dco_out) = run_command("hdparm", &["--dco-identify", &device_str])?;
+    let dco_enabled = dco_ok && !dco_out.to_lowercase().contains("no dco");
+
+    Ok(HpaInfo { hpa_enabled, dco_enabled })
 }
