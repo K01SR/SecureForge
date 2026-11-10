@@ -32,7 +32,11 @@ impl CarvingEngine {
 
         while offset < size {
             let to_read = std::cmp::min(chunk_size as u64, size - offset) as usize;
-            disk.read_exact(&mut buffer[..to_read]).unwrap_or_default(); // In reality handle errors gracefully
+            if let Err(e) = disk.read_exact(&mut buffer[..to_read]) {
+                return Err(crate::error::CoreError::Disk(
+                    format!("Read failed at offset {}: {} — carving cannot continue safely", offset, e)
+                ));
+            }
             
             let hits = self.scanner.scan_buffer(&buffer[..to_read], offset, sector_size);
             
