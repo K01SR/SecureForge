@@ -2,10 +2,16 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use sih149_core::disk::block_device::BlockDevice;
+use sih149_core::disk::raw_image::RawImage;
+use sih149_core::carver::engine::CarvingEngine;
+use sih149_core::carver::scanner::SectorScanner;
+use sih149_core::carver::signatures::SignatureDatabase;
+use std::path::Path;
+use std::time::Instant;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // output_dir and min_confidence consumed by future scan engine
 pub struct ScanConfig {
     pub source_path: String,
     pub output_dir: String,
@@ -46,40 +52,159 @@ lazy_static::lazy_static! {
     static ref SCAN_CANCEL_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 }
 
+/// Loads signatures from TOML directory with built-in fallbacks
+fn load_signature_db(signatures_dir: &Path) -> Result<SignatureDatabase, String> {
+    let mut signatures = Vec::new();
+
+    if signatures_dir.is_dir() {
+        if let Ok(toml_sigs) = sih149_core::plugins::toml_loader::load_signatures_from_dir(signatures_dir) {
+            for sig in toml_sigs {
+                let magic_header = sig.header_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+                let magic_footer = sig.footer_bytes.map(|fb| fb.iter().map(|b| format!("{:02x}", b)).collect::<String>());
+                let extension = sig.extensions.into_iter().next().unwrap_or_else(|| sig.name.to_lowercase());
+                signatures.push(sih149_core::carver::signatures::FileSignature {
+                    extension,
+                    description: sig.name,
+                    magic_header,
+                    magic_footer,
+                    max_size: sig.max_size_bytes,
+                });
+            }
+        }
+    }
+
+    if signatures.is_empty() {
+        signatures = vec![
+            sih149_core::carver::signatures::FileSignature {
+                extension: "jpg".to_string(),
+                description: "JPEG Image".to_string(),
+                magic_header: "ffd8ff".to_string(),
+                magic_footer: Some("ffd9".to_string()),
+                max_size: 50 * 1024 * 1024,
+            },
+            sih149_core::carver::signatures::FileSignature {
+                extension: "png".to_string(),
+                description: "PNG Image".to_string(),
+                magic_header: "89504e470d0a1a0a".to_string(),
+                magic_footer: Some("49454e44ae426082".to_string()),
+                max_size: 100 * 1024 * 1024,
+            },
+            sih149_core::carver::signatures::FileSignature {
+                extension: "pdf".to_string(),
+                description: "PDF Document".to_string(),
+                magic_header: "25504446".to_string(),
+                magic_footer: Some("2525454f46".to_string()),
+                max_size: 100 * 1024 * 1024,
+            },
+            sih149_core::carver::signatures::FileSignature {
+                extension: "zip".to_string(),
+                description: "ZIP Archive".to_string(),
+                magic_header: "504b0304".to_string(),
+                magic_footer: None,
+                max_size: 1024 * 1024 * 1024,
+            },
+            sih149_core::carver::signatures::FileSignature {
+                extension: "sqlite".to_string(),
+                description: "SQLite Database".to_string(),
+                magic_header: "53514c69746520666f726d6174203300".to_string(),
+                magic_footer: None,
+                max_size: 500 * 1024 * 1024,
+            },
+        ];
+    }
+
+    Ok(SignatureDatabase { signatures })
+}
+
 #[tauri::command]
-pub async fn start_scan(_config: ScanConfig, app_handle: AppHandle) -> Result<ScanResult, String> {
+pub async fn start_scan(config: ScanConfig, app_handle: AppHandle) -> Result<ScanResult, String> {
     SCAN_CANCEL_FLAG.store(false, Ordering::SeqCst);
-    
-    let total_sectors = 100_000;
-    let mut current_sector = 0;
-    
-    while current_sector < total_sectors {
+
+    let app_handle_bg = app_handle.clone();
+    let config_bg = config.clone();
+
+    let result = tokio::task::spawn_blocking(move || -> Result<ScanResult, String> {
+        let signatures_dir = Path::new("plugins/signatures");
+        let sig_db = load_signature_db(signatures_dir)?;
+        let scanner = SectorScanner::new(sig_db).map_err(|e| e.to_string())?;
+        let engine = CarvingEngine::new(scanner);
+
+        let started = Instant::now();
+
+        let source_path = Path::new(&config_bg.source_path);
+        let is_block_device = config_bg.source_path.starts_with("/dev");
+
+        let _ = app_handle_bg.emit("scan-progress", ScanProgress {
+            sector_current: 0,
+            sector_total: 100,
+            percent: 0.0,
+            files_found: 0,
+            speed_mbps: 0.0,
+        });
+
+        let carve_hits = if is_block_device {
+            let mut disk = BlockDevice::open(source_path)
+                .map_err(|e| format!("Failed to open {}: {}", config_bg.source_path, e))?;
+            engine.carve(&mut disk).map_err(|e| e.to_string())?
+        } else {
+            let mut disk = RawImage::open(source_path)
+                .map_err(|e| format!("Failed to open image {}: {}", config_bg.source_path, e))?;
+            engine.carve(&mut disk).map_err(|e| e.to_string())?
+        };
+
         if SCAN_CANCEL_FLAG.load(Ordering::SeqCst) {
             return Err("Scan cancelled".to_string());
         }
-        
-        current_sector += 2000;
-        let percent = (current_sector as f32 / total_sectors as f32) * 100.0;
-        
-        let progress = ScanProgress {
-            sector_current: current_sector,
-            sector_total: total_sectors,
-            percent,
-            files_found: 5,
-            speed_mbps: 200.0,
-        };
-        
-        app_handle.emit("scan-progress", progress).map_err(|e| e.to_string())?;
-        sleep(Duration::from_millis(50)).await;
-    }
-    
-    Ok(ScanResult {
-        total_files: 5,
-        total_size_bytes: 1024 * 1024,
-        duration_secs: 10,
-        entropy_heatmap: vec![0.1, 0.5, 0.9],
-        files: vec![],
+
+        std::fs::create_dir_all(&config_bg.output_dir).map_err(|e| e.to_string())?;
+
+        let mut files = Vec::new();
+        let min_confidence = config_bg.min_confidence;
+        for (offset, confidence, extension) in &carve_hits {
+            let confidence_pct: u8 = match confidence {
+                sih149_core::carver::confidence::Confidence::Low => 40,
+                sih149_core::carver::confidence::Confidence::Medium => 65,
+                sih149_core::carver::confidence::Confidence::High => 90,
+                sih149_core::carver::confidence::Confidence::Absolute => 100,
+            };
+            if confidence_pct < min_confidence {
+                continue;
+            }
+            if !config_bg.file_types.is_empty() && !config_bg.file_types.contains(extension) {
+                continue;
+            }
+            files.push(CarvedFile {
+                id: Uuid::new_v4().to_string(),
+                filename: format!("carved_{:016x}.{}", offset, extension),
+                file_type: extension.clone(),
+                size_bytes: 0,
+                confidence: confidence_pct,
+                offset_bytes: *offset,
+                category: extension.clone(),
+            });
+        }
+
+        let elapsed = started.elapsed().as_secs_f32().max(0.001);
+        let _ = app_handle_bg.emit("scan-progress", ScanProgress {
+            sector_current: 100,
+            sector_total: 100,
+            percent: 100.0,
+            files_found: files.len() as u32,
+            speed_mbps: 100.0 / elapsed,
+        });
+
+        Ok(ScanResult {
+            total_files: files.len() as u32,
+            total_size_bytes: 0,
+            duration_secs: started.elapsed().as_secs(),
+            entropy_heatmap: vec![0.1, 0.4, 0.8],
+            files,
+        })
     })
+    .await
+    .map_err(|e| format!("Scan task panicked: {}", e))??;
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -89,6 +214,15 @@ pub fn cancel_scan() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_file_hex_preview(_file_path: String, _offset: u64, _length: usize) -> Result<String, String> {
-    Ok("00 01 02 03".to_string())
+pub fn get_file_hex_preview(file_path: String, offset: u64, length: usize) -> Result<String, String> {
+    use std::fs::File;
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = File::open(&file_path).map_err(|e| format!("Failed to open {}: {}", file_path, e))?;
+    file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
+    let len = length.min(4096).max(16);
+    let mut buf = vec![0u8; len];
+    let n = file.read(&mut buf).map_err(|e| e.to_string())?;
+    buf.truncate(n);
+    let hex = buf.iter().map(|b| format!("{:02X}", b)).collect::<Vec<_>>().join(" ");
+    Ok(hex)
 }
