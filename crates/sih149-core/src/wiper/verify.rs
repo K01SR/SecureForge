@@ -1,24 +1,8 @@
+use crate::carver::entropy::calculate_shannon_entropy;
 use crate::disk::DiskSource;
 use crate::error::Result;
 use std::io::SeekFrom;
 use tracing::{info, warn};
-
-/// Shannon entropy of a buffer, in bits/byte (0.0–8.0).
-/// Wiped-with-random sectors should read close to 8.0.
-fn shannon_entropy(data: &[u8]) -> f64 {
-    let mut counts = [0u64; 256];
-    for &b in data {
-        counts[b as usize] += 1;
-    }
-    let len = data.len() as f64;
-    counts.iter()
-        .filter(|&&c| c > 0)
-        .map(|&c| {
-            let p = c as f64 / len;
-            -p * p.log2()
-        })
-        .sum()
-}
 
 /// Verifies that a disk has been successfully wiped with a specific pattern.
 /// For deterministic patterns (zeros/ones), does exact byte comparison.
@@ -53,7 +37,10 @@ pub fn verify_wipe<D: DiskSource>(
         disk.read_exact(&mut buffer[..to_read]).map_err(|e| crate::error::CoreError::Io(e))?;
         
         if is_random_pass {
-            let entropy = shannon_entropy(&buffer[..to_read]);
+            // Reuse the canonical entropy implementation from carver::entropy
+            // instead of reimplementing it here. Both produce identical results
+            // but sharing the function eliminates a DRY violation.
+            let entropy = calculate_shannon_entropy(&buffer[..to_read]);
             if entropy < 7.9 {
                 warn!("Wipe verification failed at offset {} (entropy {:.2} too low)", offset, entropy);
                 return Ok(false);
