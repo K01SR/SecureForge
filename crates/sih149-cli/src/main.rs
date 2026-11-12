@@ -18,8 +18,10 @@ struct Cli {
 enum Commands {
     Info(commands::info::InfoArgs),
     Wipe(commands::wipe::WipeArgs),
+    Shred(commands::shred::ShredArgs),
     Recover(commands::recover::RecoverArgs),
     Report(commands::report::ReportArgs),
+    FirmwareErase(commands::firmware_erase::FirmwareEraseArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -43,7 +45,9 @@ fn main() -> anyhow::Result<()> {
     match &cli.command {
         Commands::Info(args) => commands::info::run(args),
         Commands::Wipe(args) => commands::wipe::run(args),
+        Commands::Shred(args) => commands::shred::run(args),
         Commands::Recover(args) => commands::recover::run(args),
         Commands::Report(args) => commands::report::run(args),
+        Commands::FirmwareErase(args) => commands::firmware_erase::run(args),
     }
 }

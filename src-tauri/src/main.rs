@@ -14,6 +14,8 @@ use commands::wiper::*;
 use commands::carver::*;
 use commands::auth::*;
 use commands::reports::*;
+use commands::shredder::*;
+use commands::firmware::*;
 
 fn main() -> anyhow::Result<()> {
     tracing::info!("SecureForge Desktop v{}", env!("CARGO_PKG_VERSION"));
@@ -39,6 +41,9 @@ fn main() -> anyhow::Result<()> {
             start_scan,
             cancel_scan,
             get_file_hex_preview,
+            shred_files,
+            detect_firmware_capabilities,
+            start_firmware_erase,
             setup_expert_passphrase,
             verify_expert_passphrase,
             is_expert_configured,
