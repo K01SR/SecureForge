@@ -1,6 +1,5 @@
 //! Integration tests for the Python pipeline workers
-use std::process::{Command, Stdio};
-use std::io::Write;
+use std::process::Command;
 use std::path::PathBuf;
 
 pub fn python3_available() -> bool {

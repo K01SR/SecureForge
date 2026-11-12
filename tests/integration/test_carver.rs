@@ -7,7 +7,7 @@ use sih149_core::carver::confidence::ConfidenceScorer;
 use sih149_core::disk::raw_image::RawImage;
 
 pub fn create_test_image(path: &Path, size_mb: usize) -> std::io::Result<()> {
-    let mut file = fs::File::create(path)?;
+    let file = fs::File::create(path)?;
     file.set_len((size_mb * 1024 * 1024) as u64)?;
     Ok(())
 }
