@@ -66,11 +66,35 @@ impl FileWiper {
             )));
         }
 
-        let metadata = fs::metadata(path).map_err(CoreError::Io)?;
+        // Use symlink_metadata (lstat) NOT metadata (stat) — metadata() follows
+        // symlinks and would report a symlink as a regular file, letting an
+        // attacker place a symlink at --target pointing to /etc/passwd.
+        let metadata = fs::symlink_metadata(path).map_err(CoreError::Io)?;
+        if metadata.file_type().is_symlink() {
+            return Err(CoreError::Wiper(format!(
+                "Refusing to shred a symlink directly: {} (target not followed) — \
+                 pass the real file path if you intend to shred its content",
+                path.display()
+            )));
+        }
         let size = metadata.len();
         let chunk_size: usize = 1024 * 1024;
 
-        let mut file = OpenOptions::new().write(true).open(path).map_err(CoreError::Io)?;
+        // O_NOFOLLOW as a second defense layer: even if something replaces
+        // this path with a symlink in the gap between the metadata check above
+        // and this open() (a TOCTOU race), the open fails with ELOOP instead
+        // of silently writing through the symlink to an arbitrary target.
+        #[cfg(unix)]
+        let open_opts = {
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut o = OpenOptions::new();
+            o.write(true).custom_flags(libc::O_NOFOLLOW);
+            o
+        };
+        #[cfg(not(unix))]
+        let open_opts = { let mut o = OpenOptions::new(); o.write(true); o };
+
+        let mut file = open_opts.open(path).map_err(CoreError::Io)?;
 
         let mut passes_completed = 0u32;
         for pass in 1..=self.passes.max(1) {
@@ -135,13 +159,39 @@ impl FileWiper {
         for entry in fs::read_dir(path).map_err(CoreError::Io)? {
             let entry = entry.map_err(CoreError::Io)?;
             let entry_path = entry.path();
-            if entry_path.is_dir() {
+
+            // entry.file_type() comes from the directory entry itself (like
+            // lstat) and does NOT follow symlinks — unlike entry_path.is_dir(),
+            // which calls metadata() and DOES follow them. Using is_dir() here
+            // previously let a symlink inside the target directory (pointing
+            // anywhere on the filesystem, e.g. /etc/shadow, or even another
+            // directory entirely) get silently followed and overwritten/
+            // recursed-into. Refuse symlinks explicitly instead of following
+            // them into wipe_file_unchecked/recursion.
+            let file_type = entry.file_type().map_err(CoreError::Io)?;
+            if file_type.is_symlink() {
+                results.push(WipeFileResult {
+                    path: entry_path.to_string_lossy().into_owned(),
+                    bytes_wiped: 0,
+                    passes_completed: 0,
+                    slack_bytes_wiped: 0,
+                    success: false,
+                });
+                tracing::warn!(
+                    "Skipped symlink during directory shred (not followed): {}",
+                    entry_path.display()
+                );
+                continue;
+            }
+
+            if file_type.is_dir() {
                 self.wipe_directory_inner(&entry_path, results)?;
                 fs::remove_dir(&entry_path).map_err(CoreError::Io)?;
             } else {
                 // Per-file is_protected_path skipped here — the outer
                 // wipe_directory already blocked on the parent; individual
-                // files inside are implicitly under it.
+                // files inside are implicitly under it. Symlinks (the actual
+                // escape vector) are already excluded above.
                 results.push(self.wipe_file_unchecked(&entry_path)?);
             }
         }
@@ -151,11 +201,35 @@ impl FileWiper {
     /// Like `wipe_file` but skips the protected-path check.
     /// Used internally when the parent directory has already been validated.
     fn wipe_file_unchecked(&self, path: &Path) -> Result<WipeFileResult, CoreError> {
-        let metadata = fs::metadata(path).map_err(CoreError::Io)?;
+        let metadata = fs::symlink_metadata(path).map_err(CoreError::Io)?;
+        if metadata.file_type().is_symlink() {
+            // Defense in depth: wipe_directory_inner already filters symlinks
+            // out before calling this, but wipe_file (the public single-file
+            // entry point) can still be pointed at a symlink directly by a
+            // caller — refuse here too rather than relying on callers to remember.
+            return Err(CoreError::Wiper(format!(
+                "Refusing to shred a symlink directly: {} (target not followed)",
+                path.display()
+            )));
+        }
         let size = metadata.len();
         let chunk_size: usize = 1024 * 1024;
 
-        let mut file = OpenOptions::new().write(true).open(path).map_err(CoreError::Io)?;
+        // O_NOFOLLOW as a second layer: even if something replaces this path
+        // with a symlink in the gap between the metadata check above and this
+        // open() (a TOCTOU race), the open fails instead of silently writing
+        // through the symlink to an arbitrary target.
+        #[cfg(unix)]
+        let open_opts = {
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut o = OpenOptions::new();
+            o.write(true).custom_flags(libc::O_NOFOLLOW);
+            o
+        };
+        #[cfg(not(unix))]
+        let open_opts = { let mut o = OpenOptions::new(); o.write(true); o };
+
+        let mut file = open_opts.open(path).map_err(CoreError::Io)?;
         let mut passes_completed = 0u32;
         for pass in 1..=self.passes.max(1) {
             let pattern_fn = get_dod_pattern(pass as u8);
@@ -220,7 +294,6 @@ pub fn detect_cow_filesystem(path: &Path) -> Result<bool, CoreError> {
         use std::ffi::CString;
         use std::os::unix::ffi::OsStrExt;
 
-        // Safe: we're calling statfs with a valid path.
         let c_path = CString::new(path.as_os_str().as_bytes())
             .map_err(|e| CoreError::Disk(format!("Invalid path: {}", e)))?;
 
@@ -235,7 +308,6 @@ pub fn detect_cow_filesystem(path: &Path) -> Result<bool, CoreError> {
         // f_type magic numbers for CoW filesystems:
         //   Btrfs:  0x9123683E
         //   ZFS:    0x2FC12FC1  (OpenZFS on Linux)
-        //   tmpfs:  0x01021994  (not CoW, but volatile — data is never on persistent storage)
         let is_cow = matches!(buf.f_type, 0x9123683E | 0x2FC12FC1_i64);
         Ok(is_cow)
     }
