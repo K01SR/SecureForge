@@ -1,7 +1,7 @@
 use clap::Args;
 use std::io::{self, Write};
 use std::path::Path;
-use sih149_core::wiper::file_wiper::FileWiper;
+use sih149_core::wiper::file_wiper::{FileWiper, is_protected_path};
 use crate::display;
 
 #[derive(Args)]
@@ -32,6 +32,16 @@ pub fn run(args: &ShredArgs) -> anyhow::Result<()> {
 
     if !target.exists() {
         anyhow::bail!("Target does not exist: {}", args.target);
+    }
+
+    // Canonicalize + protected-path check before the ERASE prompt so the
+    // user can't race the guard by creating a symlink between prompt and exec.
+    if is_protected_path(target) {
+        anyhow::bail!(
+            "Refusing to shred protected system path: {}\n\
+             If this is genuinely intentional, use hdparm/nvme-cli for firmware erase instead.",
+            args.target
+        );
     }
 
     if !args.yes {
