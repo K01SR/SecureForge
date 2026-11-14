@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FileTable } from '../components/FileTable';
 import { EntropyHeatmap } from '../components/EntropyHeatmap';
 import { CarvedFile } from '../lib/types';

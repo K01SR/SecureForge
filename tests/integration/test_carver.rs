@@ -244,3 +244,104 @@ fn test_confidence_scoring() {
     scorer.has_footer = true;
     assert_eq!(scorer.calculate(), sih149_core::carver::confidence::Confidence::High);
 }
+
+#[test]
+fn test_carving_engine_with_raw_image() {
+    use sih149_core::carver::engine::CarvingEngine;
+    use sih149_core::carver::scanner::SectorScanner;
+    use sih149_core::carver::signatures::FileSignature;
+
+    let path = PathBuf::from("/tmp/test_engine_carve.dd");
+    create_test_image(&path, 2).unwrap();
+    plant_file_at_offset(&path, &jpeg_test_bytes(), 512).unwrap();
+    plant_file_at_offset(&path, &png_test_bytes(), 1024 * 1024).unwrap();
+
+    let sig_db = SignatureDatabase {
+        signatures: vec![
+            FileSignature {
+                extension: "jpg".to_string(),
+                description: "JPEG Image".to_string(),
+                magic_header: "FFD8FFE0".to_string(),
+                magic_footer: Some("FFD9".to_string()),
+                max_size: 50 * 1024 * 1024,
+            },
+            FileSignature {
+                extension: "png".to_string(),
+                description: "PNG Image".to_string(),
+                magic_header: "89504E470D0A1A0A".to_string(),
+                magic_footer: Some("49454E44AE426082".to_string()),
+                max_size: 50 * 1024 * 1024,
+            },
+        ],
+    };
+
+    let scanner = SectorScanner::new(sig_db).unwrap();
+    let engine = CarvingEngine::new(scanner);
+
+    let mut disk = RawImage::open(&path).unwrap();
+    let hits = engine.carve(&mut disk).unwrap();
+
+    assert!(hits.len() >= 2);
+    assert!(hits.iter().any(|(off, _, ext)| *off == 512 && ext == "jpg"));
+    assert!(hits.iter().any(|(off, _, ext)| *off == 1024 * 1024 && ext == "png"));
+
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn test_carving_engine_with_lua_plugin() {
+    use sih149_core::carver::engine::CarvingEngine;
+    use sih149_core::carver::scanner::SectorScanner;
+    use sih149_core::carver::signatures::FileSignature;
+    use sih149_core::plugins::lua_host::LuaPluginHost;
+    use sih149_core::carver::confidence::Confidence;
+
+    let path = PathBuf::from("/tmp/test_engine_lua_carve.dd");
+    create_test_image(&path, 1).unwrap();
+    plant_file_at_offset(&path, &jpeg_test_bytes(), 512).unwrap();
+
+    let lua_script = r#"
+        signature {
+            name = "jpg",
+            category = "Media",
+            header = "FFD8FFE0",
+            footer = "FFD9",
+            max_size = 5000000,
+            validate = function(data)
+                -- Custom validator: return false to trigger demotion
+                return false
+            end
+        }
+    "#;
+    let lua_path = PathBuf::from("/tmp/test_reject_plugin.lua");
+    fs::write(&lua_path, lua_script).unwrap();
+
+    let mut lua_host = LuaPluginHost::new();
+    lua_host.load_script(&lua_path).unwrap();
+
+    let sig_db = SignatureDatabase {
+        signatures: vec![
+            FileSignature {
+                extension: "jpg".to_string(),
+                description: "JPEG Image".to_string(),
+                magic_header: "FFD8FFE0".to_string(),
+                magic_footer: Some("FFD9".to_string()),
+                max_size: 50 * 1024 * 1024,
+            },
+        ],
+    };
+
+    let scanner = SectorScanner::new(sig_db).unwrap();
+    let engine = CarvingEngine::new(scanner).with_lua_plugins(lua_host);
+
+    let mut disk = RawImage::open(&path).unwrap();
+    let hits = engine.carve(&mut disk).unwrap();
+
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].0, 512);
+    // Plugin returned false, so confidence should be demoted to Low
+    assert_eq!(hits[0].1, Confidence::Low);
+
+    let _ = fs::remove_file(path);
+    let _ = fs::remove_file(lua_path);
+}

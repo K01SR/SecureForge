@@ -1,4 +1,3 @@
-import React from 'react';
 import { CaseRecord } from '../lib/types';
 
 export function Reports() {

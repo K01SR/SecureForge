@@ -152,6 +152,7 @@ impl FileWiper {
         }
         let mut results = Vec::new();
         self.wipe_directory_inner(path, &mut results)?;
+        fs::remove_dir(path).map_err(CoreError::Io)?;
         Ok(results)
     }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Dashboard } from './pages/Dashboard';
 import { Sanitizer } from './pages/Sanitizer';
 import { Recovery } from './pages/Recovery';

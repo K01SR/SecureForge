@@ -1,4 +1,3 @@
-import React from 'react';
 import { DriveInfo } from '../lib/types';
 
 interface Props {

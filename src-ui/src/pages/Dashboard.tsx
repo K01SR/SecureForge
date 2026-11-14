@@ -1,4 +1,3 @@
-import React from 'react';
 import { useDrives } from '../hooks/useDrives';
 import { DriveCard } from '../components/DriveCard';
 import { EntropyHeatmap } from '../components/EntropyHeatmap';

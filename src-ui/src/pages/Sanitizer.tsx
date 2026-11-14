@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useDrives } from '../hooks/useDrives';
 import { DriveCard } from '../components/DriveCard';
 import { ProgressRing } from '../components/ProgressRing';
