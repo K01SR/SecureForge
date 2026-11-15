@@ -1,66 +1,144 @@
+export type DriveType = 'HDD' | 'SSD' | 'NVMe' | 'USB' | 'Unknown';
+export type SmartStatus = 'Healthy' | 'Warning' | 'Critical' | 'Unknown';
+
 export interface DriveInfo {
-  path: string;
   name: string;
-  size: number;
-  type: string;
-  smart_status: string;
+  path: string;
+  size_bytes: number;
+  model: string;
+  serial: string;
+  drive_type: DriveType;
+  is_mounted: boolean;
+  mount_points: string[];
+  is_system_drive: boolean;
+  smart_status: SmartStatus;
 }
+
+export type WipeMethod =
+  | 'zero'
+  | 'random'
+  | 'dod3'
+  | 'dod7'
+  | 'gutmann'
+  | 'nvme-crypto'
+  | 'nvme-block'
+  | 'ata'
+  | 'ata-enhanced';
 
 export interface WipeConfig {
-  target: string;
-  method: WipeMethod;
-}
-
-export enum WipeMethod {
-  Zero = 'zero',
-  Random = 'random',
-  DoD = 'dod',
-  Gutmann = 'gutmann'
+  device_path: string;
+  method: string;
+  verify: boolean;
 }
 
 export interface WipeProgress {
+  sector_current: number;
+  sector_total: number;
   percent: number;
-  current_pass: number;
-  total_passes: number;
-  speed_bytes_sec: number;
+  speed_mbps: number;
+  eta_seconds: number;
+  phase: string;
 }
 
 export interface WipeResult {
   success: boolean;
+  sectors_wiped: number;
+  bad_sectors: number;
+  duration_secs: number;
+  method_used: string;
+  verified: boolean;
+}
+
+export interface ShredConfig {
+  paths: string[];
+  passes: number;
+  renames: number;
+  scrub_slack: boolean;
+}
+
+export interface ShredProgress {
+  current_file: string;
+  files_done: number;
+  files_total: number;
+  percent: number;
+}
+
+export interface ShredFileResult {
+  path: string;
+  bytes_wiped: number;
+  passes_completed: number;
+  success: boolean;
   error?: string;
-  hash: string;
+}
+
+export interface ShredResult {
+  total_files: number;
+  total_bytes: number;
+  failed_files: number;
+  results: ShredFileResult[];
 }
 
 export interface ScanConfig {
-  target: string;
-  min_confidence: number;
+  source_path: string;
+  output_dir: string;
   file_types: string[];
+  min_confidence: number;
 }
 
 export interface CarvedFile {
-  path: string;
-  size: number;
-  type: string;
+  id: string;
+  filename: string;
+  file_type: string;
+  size_bytes: number;
   confidence: number;
-  offset: number;
+  offset_bytes: number;
+  category: string;
 }
 
 export interface ScanProgress {
+  sector_current: number;
+  sector_total: number;
   percent: number;
   files_found: number;
-  current_sector: number;
+  speed_mbps: number;
 }
 
 export interface ScanResult {
+  total_files: number;
+  total_size_bytes: number;
+  duration_secs: number;
+  entropy_heatmap: number[];
   files: CarvedFile[];
-  entropy_map: number[];
+}
+
+export interface FirmwareCapabilities {
+  is_nvme: boolean;
+  nvme_sanitize_supported: boolean;
+  ata_frozen: boolean;
+  hpa_enabled: boolean;
+  dco_enabled: boolean;
+  recommended_method: string;
+  warnings: string[];
+}
+
+export interface FirmwareEraseConfig {
+  device_path: string;
+  method: string;
+  ata_password?: string;
+}
+
+export interface FirmwareEraseResult {
+  method_used: string;
+  success: boolean;
+  command_output: string;
+  duration_secs: number;
+  warnings: string[];
 }
 
 export interface CaseRecord {
   id: string;
-  date: string;
+  created_at: string;
+  operation_type: string;
   target: string;
-  action: string;
   status: string;
-  hash: string;
 }
