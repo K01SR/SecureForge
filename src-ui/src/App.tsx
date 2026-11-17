@@ -1,58 +1,204 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dashboard } from './pages/Dashboard';
 import { Sanitizer } from './pages/Sanitizer';
 import { Recovery } from './pages/Recovery';
 import { Reports } from './pages/Reports';
+import { Expert } from './pages/Expert';
+import { Plugins } from './pages/Plugins';
+import { useExpertMode } from './hooks/useExpertMode';
+import {
+  ShieldCheck,
+  Zap,
+  FileSearch,
+  FileText,
+  Cpu,
+  Blocks,
+  LayoutDashboard,
+  Lock,
+  Unlock,
+  Terminal,
+  Clock,
+} from 'lucide-react';
 
-type Page = 'dash' | 'wipe' | 'carve' | 'reports';
+type Page = 'dash' | 'wipe' | 'shred' | 'carve' | 'reports' | 'expert' | 'plugins';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dash');
+  const { isExpert } = useExpertMode();
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toTimeString().split(' ')[0] + ' UTC');
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const navItems = [
+    {
+      id: 'dash' as Page,
+      label: 'Command Center',
+      icon: <LayoutDashboard className="w-4 h-4" />,
+      color: 'text-cyber-400',
+      activeBg: 'bg-cyber-500/10 text-cyber-400 border-cyber-500/30',
+    },
+    {
+      id: 'wipe' as Page,
+      label: 'Sanitization Studio',
+      icon: <Zap className="w-4 h-4" />,
+      color: 'text-rose-400',
+      activeBg: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+    },
+    {
+      id: 'carve' as Page,
+      label: 'Forensic Carver',
+      icon: <FileSearch className="w-4 h-4" />,
+      color: 'text-emerald-400',
+      activeBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    },
+    {
+      id: 'reports' as Page,
+      label: 'Audit Case Vault',
+      icon: <FileText className="w-4 h-4" />,
+      color: 'text-purple-400',
+      activeBg: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    },
+    {
+      id: 'expert' as Page,
+      label: 'Firmware Enclave',
+      icon: <Cpu className="w-4 h-4" />,
+      color: 'text-amber-400',
+      activeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    },
+    {
+      id: 'plugins' as Page,
+      label: 'Signatures & Plugins',
+      icon: <Blocks className="w-4 h-4" />,
+      color: 'text-blue-400',
+      activeBg: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    },
+  ];
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-200 overflow-hidden font-sans">
-      <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
-        <div className="p-6 border-b border-gray-800">
-          <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-red-500">
-            SecureForge
-          </h1>
-          <p className="text-xs text-gray-500 font-mono mt-1">SIH149 Edition</p>
+    <div className="flex h-screen bg-surface-950 text-slate-100 overflow-hidden font-sans selection:bg-cyber-500/30">
+      {/* Cyber Sidebar */}
+      <aside className="w-64 bg-surface-900/95 border-r border-white/5 flex flex-col justify-between shrink-0 relative z-20">
+        <div>
+          {/* Logo & Brand */}
+          <div className="p-5 border-b border-white/5 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyber-500 to-rose-600 text-white shadow-lg shadow-cyber-500/20">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-base tracking-tight text-white font-mono">
+                  Secure<span className="text-cyber-400">Forge</span>
+                </span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-white/10 text-cyber-300">
+                  v0.1.0
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono tracking-wider uppercase block">
+                Sanitize • Recover • Certify
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="p-3 space-y-1.5">
+            {navItems.map((item) => {
+              const isActive = page === item.id || (page === 'shred' && item.id === 'wipe');
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setPage(item.id)}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    isActive
+                      ? `${item.activeBg} font-bold shadow-md shadow-black/40`
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={isActive ? item.color : 'text-slate-400'}>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
+                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-        
-        <nav className="flex-1 p-4 space-y-2">
-          <button 
-            onClick={() => setPage('dash')} 
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors ${page === 'dash' ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50' : 'hover:bg-gray-800 text-gray-400'}`}
-          >
-            Dashboard
-          </button>
-          <button 
-            onClick={() => setPage('wipe')} 
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors ${page === 'wipe' ? 'bg-red-900/30 text-red-400 border border-red-900/50' : 'hover:bg-gray-800 text-gray-400'}`}
-          >
-            Sanitizer (Wipe)
-          </button>
-          <button 
-            onClick={() => setPage('carve')} 
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors ${page === 'carve' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-900/50' : 'hover:bg-gray-800 text-gray-400'}`}
-          >
-            Recovery (Carve)
-          </button>
-          <button 
-            onClick={() => setPage('reports')} 
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors ${page === 'reports' ? 'bg-green-900/30 text-green-400 border border-green-900/50' : 'hover:bg-gray-800 text-gray-400'}`}
-          >
-            Audit Reports
-          </button>
-        </nav>
+
+        {/* Sidebar Footer System Status */}
+        <div className="p-4 border-t border-white/5 bg-surface-950/60 space-y-2 text-[11px] font-mono">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <Terminal className="w-3.5 h-3.5 text-cyber-400" /> Kernel Engine
+            </span>
+            <span className="text-emerald-400 font-bold">ONLINE</span>
+          </div>
+
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="flex items-center gap-1.5">
+              {isExpert ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-slate-500" />}
+              Expert Enclave
+            </span>
+            <span className={isExpert ? 'text-amber-400 font-bold' : 'text-slate-500'}>
+              {isExpert ? 'UNLOCKED' : 'LOCKED'}
+            </span>
+          </div>
+        </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-gray-950 relative">
-        {page === 'dash' && <Dashboard />}
-        {page === 'wipe' && <Sanitizer />}
-        {page === 'carve' && <Recovery />}
-        {page === 'reports' && <Reports />}
-      </main>
+      {/* Main App Container */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Top Operational Header */}
+        <header className="h-14 bg-surface-900/80 backdrop-blur-md border-b border-white/5 px-6 flex items-center justify-between shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+              Module:
+            </span>
+            <span className="text-xs font-mono font-bold text-white px-2.5 py-1 rounded-md bg-surface-950 border border-white/10">
+              {page === 'dash'
+                ? 'SYSTEM_TELEMETRY'
+                : page === 'wipe' || page === 'shred'
+                ? 'DATA_SANITIZATION'
+                : page === 'carve'
+                ? 'FORENSIC_CARVER'
+                : page === 'reports'
+                ? 'AUDIT_CASE_VAULT'
+                : page === 'expert'
+                ? 'FIRMWARE_SECURITY'
+                : 'PLUGIN_MANAGER'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div className="hidden sm:flex items-center gap-1.5 text-slate-400 bg-surface-950 px-3 py-1 rounded-lg border border-white/5">
+              <Clock className="w-3.5 h-3.5 text-cyber-400" />
+              <span>{currentTime}</span>
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-950/80 border border-emerald-800/60 text-emerald-400 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>NIST SP 800-88 R1</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Page Body */}
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-surface-950/80">
+          {page === 'dash' && <Dashboard onNavigate={(p) => setPage(p)} />}
+          {(page === 'wipe' || page === 'shred') && <Sanitizer />}
+          {page === 'carve' && <Recovery />}
+          {page === 'reports' && <Reports />}
+          {page === 'expert' && <Expert />}
+          {page === 'plugins' && <Plugins />}
+        </main>
+      </div>
     </div>
   );
 }
