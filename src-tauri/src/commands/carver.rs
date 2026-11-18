@@ -217,7 +217,14 @@ pub fn cancel_scan() -> Result<(), String> {
 pub fn get_file_hex_preview(file_path: String, offset: u64, length: usize) -> Result<String, String> {
     use std::fs::File;
     use std::io::{Read, Seek, SeekFrom};
-    let mut file = File::open(&file_path).map_err(|e| format!("Failed to open {}: {}", file_path, e))?;
+    use std::path::Path;
+
+    let path = Path::new(&file_path);
+    if sih149_core::wiper::file_wiper::is_protected_path(path) {
+        return Err(format!("Access denied: Refusing to read raw hex of protected system path: {}", file_path));
+    }
+
+    let mut file = File::open(path).map_err(|e| format!("Failed to open {}: {}", file_path, e))?;
     file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
     let len = length.min(4096).max(16);
     let mut buf = vec![0u8; len];
