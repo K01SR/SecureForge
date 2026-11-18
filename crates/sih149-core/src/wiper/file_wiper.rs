@@ -51,6 +51,23 @@ pub fn is_protected_path(path: &Path) -> bool {
     protected.iter().any(|prefix| s == *prefix || s.starts_with(&format!("{}/", prefix)))
 }
 
+/// Returns `true` if `device` points to a primary boot or system block device
+/// (e.g. /dev/sda, /dev/nvme0n1, /dev/disk0, /dev/vda, /dev/root).
+/// Symlinks and partition aliases are resolved before comparison.
+pub fn is_protected_drive(device: &Path) -> bool {
+    let protected_prefixes = [
+        "/dev/sda",
+        "/dev/nvme0n1",
+        "/dev/disk0",
+        "/dev/vda",
+        "/dev/root",
+    ];
+    let canonical = std::fs::canonicalize(device)
+        .unwrap_or_else(|_| device.to_path_buf());
+    let s = canonical.to_string_lossy();
+    protected_prefixes.iter().any(|prefix| s == *prefix || s.starts_with(prefix))
+}
+
 impl FileWiper {
     pub fn new(passes: u32, rename_count: u32, scrub_slack_space: bool) -> Self {
         Self { passes, rename_count, scrub_slack_space }

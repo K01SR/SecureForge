@@ -7,17 +7,7 @@ use sih149_core::disk::DiskSource;
 use sih149_core::wiper::patterns::get_dod_pattern;
 use sih149_core::wiper::verify::verify_wipe;
 
-/// Resolves a path to its real, canonical form and checks whether it points
-/// at a protected system drive. The old check compared the literal string
-/// "/dev/sda" — trivially bypassed via "/dev/sda1", a symlink, or any path
-/// alias. This resolves symlinks first and matches by device identity.
-fn targets_protected_drive(target: &str) -> bool {
-    let protected_prefixes = ["/dev/sda", "/dev/nvme0n1", "/dev/disk0"];
-    let canonical = std::fs::canonicalize(target)
-        .unwrap_or_else(|_| Path::new(target).to_path_buf());
-    let canon_str = canonical.to_string_lossy();
-    protected_prefixes.iter().any(|p| canon_str.starts_with(p))
-}
+use sih149_core::wiper::file_wiper::is_protected_drive;
 
 #[derive(Args)]
 pub struct WipeArgs {
@@ -36,7 +26,7 @@ pub fn run(args: &WipeArgs) -> anyhow::Result<()> {
     }
     let target = args.device.as_deref().or(args.file.as_deref()).unwrap();
     
-    if targets_protected_drive(target) && !args.expert {
+    if is_protected_drive(Path::new(target)) && !args.expert {
         display::print_error("Cannot wipe system drive without --expert");
         anyhow::bail!("Safety check failed");
     }

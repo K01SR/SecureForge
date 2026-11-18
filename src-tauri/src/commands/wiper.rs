@@ -14,6 +14,7 @@ pub struct WipeConfig {
     pub device_path: String,
     pub method: String,
     pub verify: bool,
+    pub expert: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +49,14 @@ pub async fn start_wipe(config: WipeConfig, app_handle: AppHandle) -> Result<Wip
     let config_bg = config.clone();
 
     let result = tokio::task::spawn_blocking(move || -> Result<WipeResult, String> {
+        let path = std::path::Path::new(&config_bg.device_path);
+        if sih149_core::wiper::file_wiper::is_protected_drive(path) && !config_bg.expert.unwrap_or(false) {
+            return Err(format!(
+                "Safety guard: Refusing to wipe system/boot drive {} without explicit expert authorization.",
+                config_bg.device_path
+            ));
+        }
+
         let mut disk = BlockDevice::open(&config_bg.device_path)
             .map_err(|e| format!("Failed to open {}: {}", config_bg.device_path, e))?;
         let size = disk.size().map_err(|e| e.to_string())?;
