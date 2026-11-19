@@ -19,17 +19,51 @@ use commands::firmware::*;
 
 fn main() -> anyhow::Result<()> {
     tracing::info!("SecureForge Desktop v{}", env!("CARGO_PKG_VERSION"));
-    
-    if std::env::args().any(|a| a == "--server") {
-        let port: u16 = std::env::args()
-            .find(|a| a.starts_with("--port="))
-            .and_then(|a| a.split('=').nth(1).map(|s| s.parse().ok()).flatten())
-            .unwrap_or(7878);
-        let host = "127.0.0.1".to_string();
-        tokio::runtime::Runtime::new()?.block_on(crate::server::start_server(host, port, None))?;
+
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--server") {
+        let mut port: u16 = 7878;
+        let mut host = "127.0.0.1".to_string();
+        let mut api_token: Option<String> = None;
+
+        let mut i = 1;
+        while i < args.len() {
+            if args[i] == "--port" && i + 1 < args.len() {
+                if let Ok(p) = args[i + 1].parse() {
+                    port = p;
+                }
+                i += 2;
+                continue;
+            } else if args[i].starts_with("--port=") {
+                if let Some(val) = args[i].split('=').nth(1) {
+                    if let Ok(p) = val.parse() {
+                        port = p;
+                    }
+                }
+            } else if args[i] == "--host" && i + 1 < args.len() {
+                host = args[i + 1].clone();
+                i += 2;
+                continue;
+            } else if args[i].starts_with("--host=") {
+                if let Some(val) = args[i].split('=').nth(1) {
+                    host = val.to_string();
+                }
+            } else if args[i] == "--api-token" && i + 1 < args.len() {
+                api_token = Some(args[i + 1].clone());
+                i += 2;
+                continue;
+            } else if args[i].starts_with("--api-token=") {
+                if let Some(val) = args[i].split('=').nth(1) {
+                    api_token = Some(val.to_string());
+                }
+            }
+            i += 1;
+        }
+
+        tokio::runtime::Runtime::new()?.block_on(crate::server::start_server(host, port, api_token))?;
         return Ok(());
     }
-    
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
