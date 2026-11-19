@@ -10,7 +10,7 @@ except ImportError:
     WEASYPRINT_AVAILABLE = False
 
 try:
-    from jinja2 import Environment, FileSystemLoader
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
 except ImportError:
     pass
 
@@ -34,7 +34,14 @@ def load_audit_data(path):
         sys.exit(1)
 
 def render_html(data, template_name, template_dir):
-    env = Environment(loader=FileSystemLoader(template_dir))
+    try:
+        env = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
+    except (TypeError, NameError):
+        env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
+
     template_file = f"{template_name}_report.html"
     if template_name == 'erasure':
         template_file = f"{template_name}_certificate.html"
