@@ -128,6 +128,17 @@ impl LuaPluginHost {
         let safe_libs = StdLib::STRING | StdLib::TABLE | StdLib::MATH;
         let lua = Lua::new_with(safe_libs, LuaOptions::default())
             .map_err(|e| CoreError::Parse(format!("Failed to init sandboxed Lua: {e}")))?;
+
+        // Set instruction hook limit (100k instructions) to prevent infinite loop DoS
+        lua.set_hook(
+            mlua::HookTriggers::default().every_nth_instruction(100_000),
+            |_lua, _debug| {
+                Err(mlua::Error::RuntimeError(
+                    "Lua execution instruction limit exceeded (100,000 instructions) — execution terminated to prevent DoS".to_string()
+                ))
+            },
+        );
+
         let globals = lua.globals();
         
         let signature_func = lua.create_function(move |_lua, table: mlua::Table| {
