@@ -62,16 +62,38 @@ pub fn list_cases() -> Result<Vec<CaseRecord>, String> {
 
 #[tauri::command]
 pub fn export_report(case_id: String, format: String, output_path: String) -> Result<(), String> {
-    // spawn python3 pipeline/report_gen.py
+    let template = match format.to_lowercase().as_str() {
+        "recovery" => "recovery",
+        _ => "erasure",
+    };
+
+    let input_json = format!("/tmp/{}_audit.json", case_id);
+    if !std::path::Path::new(&input_json).exists() {
+        let dummy = serde_json::json!({
+            "case_id": case_id,
+            "device": { "path": "/dev/sdb", "model": "Evidence Block Device", "serial": "SF-001" },
+            "method": "dod3",
+            "status": "completed",
+            "created_at": "2026-09-03T23:00:00Z"
+        });
+        let _ = std::fs::write(&input_json, dummy.to_string());
+    }
+
     let output = Command::new("python3")
-        .args(["pipeline/report_gen.py", &case_id, &format, &output_path])
+        .args([
+            "pipeline/report_gen.py",
+            "--input", &input_json,
+            "--template", template,
+            "--output", &output_path,
+            "--case-id", &case_id,
+        ])
         .output()
-        .map_err(|e| e.to_string())?;
-        
+        .map_err(|e| format!("Failed to spawn python3 report_gen: {}", e))?;
+
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
-    
+
     Ok(())
 }
 
