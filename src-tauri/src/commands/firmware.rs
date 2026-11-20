@@ -161,7 +161,13 @@ pub async fn start_firmware_erase(config: FirmwareEraseConfig) -> Result<Firmwar
             }
         }
 
-        let ata_password = config.ata_password.as_deref().unwrap_or("secureforge_tmp");
+        let generated_pass: String = {
+            use rand::RngCore;
+            let mut bytes = [0u8; 8];
+            rand::rngs::OsRng.fill_bytes(&mut bytes);
+            bytes.iter().map(|b| format!("{:02x}", b)).collect()
+        };
+        let ata_password = config.ata_password.as_deref().unwrap_or(&generated_pass);
 
         let result = match &method {
             FirmwareMethod::NvmeCryptoErase => nvme_crypto_erase(device)
