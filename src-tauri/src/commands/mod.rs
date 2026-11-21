@@ -5,3 +5,4 @@ pub mod auth;
 pub mod reports;
 pub mod shredder;
 pub mod firmware;
+pub mod plugins;

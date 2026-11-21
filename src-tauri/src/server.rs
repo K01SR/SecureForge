@@ -212,6 +212,57 @@ async fn post_scan(
     )
 }
 
+#[derive(Deserialize)]
+struct EntropyRequest {
+    device_path: String,
+    chunks: Option<usize>,
+}
+
+/// GET /api/cases — list all forensic cases from SQLite DB
+async fn get_cases(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    match crate::commands::reports::list_cases() {
+        Ok(cases) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "success", "data": cases })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "status": "error", "message": e })),
+        ),
+    }
+}
+
+/// GET /api/plugins — list all loaded TOML & Lua signature plugins
+async fn get_plugins(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    match crate::commands::plugins::list_plugins() {
+        Ok(plugins) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "success", "data": plugins })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "status": "error", "message": e })),
+        ),
+    }
+}
+
+/// POST /api/entropy — calculate real Shannon entropy over blocks
+async fn post_entropy(
+    State(_state): State<Arc<AppState>>,
+    Json(req): Json<EntropyRequest>,
+) -> impl IntoResponse {
+    match crate::commands::plugins::get_drive_entropy(req.device_path, req.chunks) {
+        Ok(entropies) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "success", "data": entropies })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "status": "error", "message": e })),
+        ),
+    }
+}
+
 /// GET /api/jobs/:id — poll status of a running job
 async fn get_job_status(
     State(_state): State<Arc<AppState>>,
@@ -294,6 +345,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/drives", get(get_drives))
         .route("/api/wipe", post(post_wipe))
         .route("/api/scan", post(post_scan))
+        .route("/api/cases", get(get_cases))
+        .route("/api/plugins", get(get_plugins))
+        .route("/api/entropy", post(post_entropy))
         .route("/api/jobs/:id", get(get_job_status))
         .layer(from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone())

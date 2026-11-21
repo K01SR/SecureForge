@@ -16,6 +16,7 @@ use commands::auth::*;
 use commands::reports::*;
 use commands::shredder::*;
 use commands::firmware::*;
+use commands::plugins::*;
 
 fn main() -> anyhow::Result<()> {
     tracing::info!("SecureForge Desktop v{}", env!("CARGO_PKG_VERSION"));
@@ -84,6 +85,8 @@ fn main() -> anyhow::Result<()> {
             list_cases,
             export_report,
             get_audit_log,
+            list_plugins,
+            get_drive_entropy,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
