@@ -13,9 +13,10 @@ import {
   FirmwareEraseConfig,
   FirmwareEraseResult,
   CaseRecord,
+  PluginItem,
 } from './types';
 
-// Safely detect if running inside Tauri desktop runtime
+// Detect if running inside Tauri desktop runtime
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -23,8 +24,74 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<T>(cmd, args);
   }
-  // Standalone Browser Mock Fallbacks
-  return mockInvoke<T>(cmd, args);
+
+  // Real REST API execution over HTTP server when accessed in a browser
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:7878';
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('secureforge_api_token') : '';
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    switch (cmd) {
+      case 'list_drives': {
+        const res = await fetch(`${baseUrl}/api/drives`, { headers });
+        const json = await res.json();
+        if (json.status === 'success') return json.data as T;
+        throw new Error(json.message || 'Failed to query system drives');
+      }
+
+      case 'start_wipe': {
+        const res = await fetch(`${baseUrl}/api/wipe`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(args?.config || args),
+        });
+        return (await res.json()) as T;
+      }
+
+      case 'start_scan': {
+        const res = await fetch(`${baseUrl}/api/scan`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(args?.config || args),
+        });
+        return (await res.json()) as T;
+      }
+
+      case 'list_cases': {
+        const res = await fetch(`${baseUrl}/api/cases`, { headers });
+        const json = await res.json();
+        return (json.data || []) as T;
+      }
+
+      case 'list_plugins': {
+        const res = await fetch(`${baseUrl}/api/plugins`, { headers });
+        const json = await res.json();
+        return (json.data || []) as T;
+      }
+
+      case 'get_drive_entropy': {
+        const res = await fetch(`${baseUrl}/api/entropy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(args),
+        });
+        const json = await res.json();
+        return (json.data || []) as T;
+      }
+
+      default:
+        throw new Error(`Command '${cmd}' requires direct Tauri runtime or mapped REST route.`);
+    }
+  } catch (err: any) {
+    console.warn(`[SecureForge API] ${cmd} error:`, err);
+    throw err;
+  }
 }
 
 async function tauriListen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
@@ -34,110 +101,6 @@ async function tauriListen<T>(event: string, handler: (payload: T) => void): Pro
     return unlisten;
   }
   return () => {};
-}
-
-// Fallback mocks for preview in regular web browser
-function mockInvoke<T>(cmd: string, _args?: Record<string, unknown>): Promise<T> {
-  switch (cmd) {
-    case 'list_drives':
-      return Promise.resolve([
-        {
-          name: 'nvme0n1',
-          path: '/dev/nvme0n1',
-          size_bytes: 512110190592,
-          model: 'Samsung SSD 980 PRO 500GB',
-          serial: 'S5GXNF0T123456',
-          drive_type: 'NVMe',
-          is_mounted: true,
-          mount_points: ['/', '/boot/efi'],
-          is_system_drive: true,
-          smart_status: 'Healthy',
-        },
-        {
-          name: 'sda',
-          path: '/dev/sda',
-          size_bytes: 2000398934016,
-          model: 'Crucial MX500 2TB',
-          serial: '2142E5C12345',
-          drive_type: 'SSD',
-          is_mounted: false,
-          mount_points: [],
-          is_system_drive: false,
-          smart_status: 'Healthy',
-        },
-        {
-          name: 'sdb',
-          path: '/dev/sdb',
-          size_bytes: 4000787030016,
-          model: 'WDC WD40EZAZ-00SF3B0',
-          serial: 'WD-WX32D1234567',
-          drive_type: 'HDD',
-          is_mounted: false,
-          mount_points: [],
-          is_system_drive: false,
-          smart_status: 'Warning',
-        },
-      ] as unknown as T);
-
-    case 'start_wipe':
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            sectors_wiped: 3907029168,
-            bad_sectors: 0,
-            duration_secs: 42,
-            method_used: 'dod3',
-            verified: true,
-          } as unknown as T);
-        }, 1500);
-      });
-
-    case 'shred_files':
-      return Promise.resolve({
-        total_files: 3,
-        total_bytes: 14258900,
-        failed_files: 0,
-        results: [
-          { path: '/tmp/evidence/doc1.pdf', bytes_wiped: 4258900, passes_completed: 3, success: true },
-          { path: '/tmp/evidence/db.sqlite', bytes_wiped: 10000000, passes_completed: 3, success: true },
-        ],
-      } as unknown as T);
-
-    case 'start_scan':
-      return Promise.resolve({
-        total_files: 4,
-        total_size_bytes: 24589000,
-        duration_secs: 12,
-        entropy_heatmap: Array.from({ length: 100 }, () => Math.random() * 8),
-        files: [
-          { id: '1', filename: 'carved_00000200.jpg', file_type: 'jpg', size_bytes: 4250000, confidence: 95, offset_bytes: 512, category: 'Media' },
-          { id: '2', filename: 'carved_00450000.png', file_type: 'png', size_bytes: 1200000, confidence: 90, offset_bytes: 4521984, category: 'Media' },
-          { id: '3', filename: 'carved_00900000.pdf', file_type: 'pdf', size_bytes: 8400000, confidence: 85, offset_bytes: 9437184, category: 'Document' },
-          { id: '4', filename: 'carved_01500000.sqlite', file_type: 'sqlite', size_bytes: 10739000, confidence: 92, offset_bytes: 15728640, category: 'Database' },
-        ],
-      } as unknown as T);
-
-    case 'detect_firmware_capabilities':
-      return Promise.resolve({
-        is_nvme: true,
-        nvme_sanitize_supported: true,
-        ata_frozen: false,
-        hpa_enabled: false,
-        dco_enabled: false,
-        recommended_method: 'nvme-crypto',
-        warnings: [],
-      } as unknown as T);
-
-    case 'list_cases':
-      return Promise.resolve([
-        { id: 'CASE-2026-001', created_at: '2026-11-10 14:30:00', operation_type: 'Disk Wipe (DoD 3-Pass)', target: '/dev/sdb', status: 'Completed & Certified' },
-        { id: 'CASE-2026-002', created_at: '2026-11-12 10:15:00', operation_type: 'Forensic File Carving', target: 'evidence_image.dd', status: 'Completed' },
-      ] as unknown as T);
-
-    default:
-      return Promise.resolve({} as T);
-  }
 }
 
 export const DrivesAPI = {
@@ -184,4 +147,13 @@ export const ReportsAPI = {
   export: (caseId: string, format: string, outputPath: string): Promise<string> =>
     tauriInvoke('export_report', { caseId, format, outputPath }),
   getAuditLog: (caseId: string): Promise<string> => tauriInvoke('get_audit_log', { caseId }),
+};
+
+export const PluginsAPI = {
+  list: (): Promise<PluginItem[]> => tauriInvoke('list_plugins'),
+};
+
+export const EntropyAPI = {
+  get: (devicePath: string, chunks?: number): Promise<number[]> =>
+    tauriInvoke('get_drive_entropy', { devicePath, chunks }),
 };

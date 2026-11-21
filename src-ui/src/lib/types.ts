@@ -142,3 +142,13 @@ export interface CaseRecord {
   target: string;
   status: string;
 }
+
+export interface PluginItem {
+  name: string;
+  category: string;
+  plugin_type: string;
+  extension: string;
+  has_validator: boolean;
+  status: string;
+  description: string;
+}

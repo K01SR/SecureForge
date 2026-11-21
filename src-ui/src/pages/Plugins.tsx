@@ -1,64 +1,28 @@
-import { useState } from 'react';
-import { Code, FileCode, ShieldCheck, Plus } from 'lucide-react';
-
-interface PluginItem {
-  name: string;
-  category: string;
-  type: 'TOML' | 'Lua';
-  extension: string;
-  hasValidator: boolean;
-  status: 'Active' | 'Sandboxed';
-  description: string;
-}
+import { useState, useEffect } from 'react';
+import { PluginsAPI } from '../lib/api';
+import { PluginItem } from '../lib/types';
+import { Code, FileCode, ShieldCheck, Plus, RefreshCw } from 'lucide-react';
 
 export function Plugins() {
-  const [plugins] = useState<PluginItem[]>([
-    {
-      name: 'JPEG Image Signature',
-      category: 'Media',
-      type: 'TOML',
-      extension: '.jpg / .jpeg',
-      hasValidator: true,
-      status: 'Active',
-      description: 'Standard JFIF and Exif marker header/footer scanning with SOF validation.',
-    },
-    {
-      name: 'PNG Portable Network Graphics',
-      category: 'Media',
-      type: 'TOML',
-      extension: '.png',
-      hasValidator: true,
-      status: 'Active',
-      description: 'IHDR chunk validation and IEND terminator stream checking.',
-    },
-    {
-      name: 'PDF Document Signature',
-      category: 'Document',
-      type: 'TOML',
-      extension: '.pdf',
-      hasValidator: true,
-      status: 'Active',
-      description: '%PDF- header and %%EOF trailer integrity verification.',
-    },
-    {
-      name: 'SQLite 3 Database Parser',
-      category: 'Database',
-      type: 'Lua',
-      extension: '.sqlite / .db',
-      hasValidator: true,
-      status: 'Sandboxed',
-      description: 'Sandboxed Lua engine verifying SQLite page sizes and b-tree page headers.',
-    },
-    {
-      name: 'ZIP / Office OpenXML Archive',
-      category: 'Archive',
-      type: 'TOML',
-      extension: '.zip / .docx / .xlsx',
-      hasValidator: true,
-      status: 'Active',
-      description: 'PK\\x03\\x04 central directory and end of central directory record parser.',
-    },
-  ]);
+  const [plugins, setPlugins] = useState<PluginItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPlugins = () => {
+    setLoading(true);
+    PluginsAPI.list()
+      .then((data) => {
+        setPlugins(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load plugins:', err);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchPlugins();
+  }, []);
 
   return (
     <div className="space-y-6 pb-12">
@@ -74,46 +38,72 @@ export function Plugins() {
             TOML Signatures & Sandboxed Lua Host
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Secure sandboxed execution environment with string/math capabilities for custom file formats.
+            Real filesystem plugins parsed directly from <code>plugins/signatures/</code> and <code>plugins/scripts/</code>.
           </p>
         </div>
 
-        <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyber-600 to-cyber-500 hover:from-cyber-500 hover:to-cyber-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-cyber-600/30 transition-all cursor-pointer">
-          <Plus className="w-4 h-4" /> Load Signature File
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchPlugins}
+            disabled={loading}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-surface-800 hover:bg-surface-700 text-slate-300 text-xs font-bold transition-all border border-white/5 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Reload Plugins
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyber-600 to-cyber-500 hover:from-cyber-500 hover:to-cyber-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-cyber-600/30 transition-all cursor-pointer">
+            <Plus className="w-4 h-4" /> Load Custom Plugin
+          </button>
+        </div>
       </div>
 
       {/* Grid of Plugins */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plugins.map((p, idx) => (
-          <div
-            key={idx}
-            className="glass-panel p-5 rounded-2xl border border-white/10 hover:border-cyber-500/40 transition-all space-y-3"
-          >
-            <div className="flex items-start justify-between">
-              <div className="p-2.5 rounded-xl bg-surface-950 border border-white/5 text-cyber-400">
-                {p.type === 'Lua' ? <Code className="w-5 h-5 text-purple-400" /> : <FileCode className="w-5 h-5 text-cyber-400" />}
+      {loading ? (
+        <div className="glass-panel p-12 rounded-xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin text-cyber-400" />
+          Loading active signature definitions from disk...
+        </div>
+      ) : plugins.length === 0 ? (
+        <div className="glass-panel p-12 rounded-xl text-center text-xs text-slate-500">
+          No active plugins found in <code>plugins/</code>.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {plugins.map((p, idx) => (
+            <div
+              key={idx}
+              className="glass-panel p-5 rounded-2xl border border-white/10 hover:border-cyber-500/40 transition-all space-y-3"
+            >
+              <div className="flex items-start justify-between">
+                <div className="p-2.5 rounded-xl bg-surface-950 border border-white/5 text-cyber-400">
+                  {p.plugin_type === 'Lua' ? (
+                    <Code className="w-5 h-5 text-purple-400" />
+                  ) : (
+                    <FileCode className="w-5 h-5 text-cyber-400" />
+                  )}
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-surface-950 text-slate-300 border border-white/10">
+                  {p.plugin_type} Module
+                </span>
               </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-surface-950 text-slate-300 border border-white/10">
-                {p.type} Module
-              </span>
-            </div>
 
-            <div>
-              <h3 className="font-bold text-sm text-white">{p.name}</h3>
-              <span className="text-xs text-cyber-400 font-mono block mt-0.5">{p.extension}</span>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed">{p.description}</p>
-            </div>
+              <div>
+                <h3 className="font-bold text-sm text-white">{p.name}</h3>
+                <span className="text-xs text-cyber-400 font-mono block mt-0.5">{p.extension}</span>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">{p.description}</p>
+              </div>
 
-            <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-500">Category: <strong className="text-slate-300">{p.category}</strong></span>
-              <span className="text-emerald-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> {p.status}
-              </span>
+              <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-500">
+                  Category: <strong className="text-slate-300">{p.category}</strong>
+                </span>
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" /> {p.status}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

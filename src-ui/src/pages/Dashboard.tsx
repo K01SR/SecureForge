@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDrives } from '../hooks/useDrives';
 import { DriveCard } from '../components/DriveCard';
 import { EntropyHeatmap } from '../components/EntropyHeatmap';
@@ -16,6 +16,8 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { EntropyAPI } from '../lib/api';
+
 interface Props {
   onNavigate: (page: 'dash' | 'wipe' | 'shred' | 'carve' | 'reports' | 'expert') => void;
 }
@@ -23,15 +25,20 @@ interface Props {
 export function Dashboard({ onNavigate }: Props) {
   const { drives, loading, error, refresh } = useDrives();
   const [selectedDrive, setSelectedDrive] = useState<DriveInfo | null>(null);
+  const [entropyData, setEntropyData] = useState<number[]>([]);
 
-  // Live entropy mock telemetry for overview
-  const [sampleEntropy] = useState<number[]>(() =>
-    Array.from({ length: 120 }, (_, i) => {
-      if (i < 30) return 0.02; // zeroed/wiped
-      if (i < 70) return 4.8 + Math.sin(i) * 1.5; // mixed data
-      return 7.92 + Math.random() * 0.07; // encrypted/CSPRNG
-    })
-  );
+  useEffect(() => {
+    const target = selectedDrive || (drives.length > 0 ? drives[0] : null);
+    if (target) {
+      EntropyAPI.get(target.path, 120)
+        .then((data) => {
+          if (data && data.length > 0) setEntropyData(data);
+        })
+        .catch(() => {
+          // If device read requires root or image path
+        });
+    }
+  }, [selectedDrive, drives]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -281,7 +288,7 @@ export function Dashboard({ onNavigate }: Props) {
 
       {/* Real-time Sector Entropy Radar */}
       <div>
-        <EntropyHeatmap data={sampleEntropy} height={44} title="Live Forensic Entropy Telemetry Monitor" />
+        <EntropyHeatmap data={entropyData} height={44} title="Live Forensic Entropy Telemetry Monitor" />
       </div>
     </div>
   );
