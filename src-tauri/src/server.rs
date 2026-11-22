@@ -21,8 +21,9 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::{PathBuf, Path as FsPath};
 use std::sync::Arc;
+use std::fs;
 use tokio::net::TcpListener;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 
 /// Shared server state injected into every handler via `State<Arc<AppState>>`
 #[allow(dead_code)]
@@ -59,6 +60,12 @@ struct ScanRequest {
     min_confidence: u8,
 }
 
+#[derive(Deserialize)]
+struct EntropyRequest {
+    device_path: String,
+    chunks: Option<usize>,
+}
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 /// Constant-time bearer token comparison to prevent timing side-channel attacks.
@@ -77,15 +84,15 @@ fn verify_token(state: &AppState, token: &str) -> bool {
         == 0
 }
 
-/// Authentication middleware for all `/api/*` routes (except `/health`).
+/// Authentication middleware for all `/api/*` routes (except `/health` and `/api/auth/token`).
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     req: axum::extract::Request,
     next: Next,
 ) -> Result<axum::response::Response, (StatusCode, Json<serde_json::Value>)> {
     let path = req.uri().path();
-    // /health and static asset requests do not require authentication
-    if path == "/health" || !path.starts_with("/api") {
+    // /health, token bootstrap, and non-api routes do not require Bearer header
+    if path == "/health" || path == "/api/auth/token" || !path.starts_with("/api") {
         return Ok(next.run(req).await);
     }
 
@@ -125,6 +132,14 @@ async fn health() -> impl IntoResponse {
     }))
 }
 
+/// GET /api/auth/token — local session token retrieval
+async fn get_auth_token(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    Json(serde_json::json!({
+        "status": "success",
+        "token": state.api_token,
+    }))
+}
+
 /// GET /api/drives — list all block devices via lsblk
 async fn get_drives(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
     match crate::commands::drives::list_drives() {
@@ -144,7 +159,6 @@ async fn post_wipe(
     State(_state): State<Arc<AppState>>,
     Json(req): Json<WipeRequest>,
 ) -> impl IntoResponse {
-    // Safety check: verify the target is not a protected system/boot drive
     let target = FsPath::new(&req.device_path);
     if sih149_core::wiper::file_wiper::is_protected_drive(target) && !req.expert.unwrap_or(false) {
         return (
@@ -210,12 +224,6 @@ async fn post_scan(
             "message": format!("Scan of {} enqueued", req.source_path)
         })),
     )
-}
-
-#[derive(Deserialize)]
-struct EntropyRequest {
-    device_path: String,
-    chunks: Option<usize>,
 }
 
 /// GET /api/cases — list all forensic cases from SQLite DB
@@ -293,6 +301,26 @@ fn find_frontend_dist() -> Option<PathBuf> {
     None
 }
 
+/// Serve index.html with injected session token meta tag
+async fn serve_index_html(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    if let Some(dist_dir) = find_frontend_dist() {
+        let index_path = dist_dir.join("index.html");
+        if let Ok(mut html) = fs::read_to_string(index_path) {
+            let meta_tag = format!(
+                r#"<meta name="secureforge-api-token" content="{}"></head>"#,
+                state.api_token
+            );
+            html = html.replace("</head>", &meta_tag);
+            return (
+                StatusCode::OK,
+                [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                html,
+            ).into_response();
+        }
+    }
+    fallback_html_handler().await.into_response()
+}
+
 /// Fallback HTML when frontend bundle has not yet been built
 async fn fallback_html_handler() -> impl IntoResponse {
     Html(r#"<!DOCTYPE html>
@@ -328,6 +356,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .allow_origin([
             format!("http://localhost:{}", state.port).parse().unwrap_or(HeaderValue::from_static("http://localhost:7878")),
             format!("http://127.0.0.1:{}", state.port).parse().unwrap_or(HeaderValue::from_static("http://127.0.0.1:7878")),
+            "http://localhost:5173".parse().unwrap_or(HeaderValue::from_static("http://localhost:5173")),
+            "http://127.0.0.1:5173".parse().unwrap_or(HeaderValue::from_static("http://127.0.0.1:5173")),
         ])
         .allow_methods([
             axum::http::Method::GET,
@@ -342,6 +372,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     let api_router = Router::new()
         .route("/health", get(health))
+        .route("/api/auth/token", get(get_auth_token))
         .route("/api/drives", get(get_drives))
         .route("/api/wipe", post(post_wipe))
         .route("/api/scan", post(post_scan))
@@ -350,13 +381,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/entropy", post(post_entropy))
         .route("/api/jobs/:id", get(get_job_status))
         .layer(from_fn_with_state(state.clone(), auth_middleware))
-        .with_state(state.clone())
-        .layer(cors);
+        .layer(cors)
+        .with_state(state.clone());
 
     if let Some(dist_dir) = find_frontend_dist() {
-        let index_html = dist_dir.join("index.html");
-        let serve_dir = ServeDir::new(&dist_dir).not_found_service(ServeFile::new(index_html));
-        api_router.fallback_service(serve_dir)
+        let assets_dir = dist_dir.join("assets");
+        let static_router = Router::new()
+            .route("/", get(serve_index_html))
+            .route("/index.html", get(serve_index_html))
+            .fallback(serve_index_html)
+            .with_state(state)
+            .nest_service("/assets", ServeDir::new(assets_dir));
+        static_router.merge(api_router)
     } else {
         api_router.fallback(fallback_html_handler)
     }
@@ -370,7 +406,6 @@ pub async fn start_server(
     port: u16,
     api_token: Option<String>,
 ) -> anyhow::Result<()> {
-    // Generate secure token if none supplied so server is always authenticated by default
     let (token, was_generated) = match api_token {
         Some(t) if !t.is_empty() => (t, false),
         _ => {
@@ -397,7 +432,7 @@ pub async fn start_server(
     println!("  Web UI URL : http://{}", addr);
     if was_generated {
         println!("  Auth Token : {}", token);
-        println!("  (Auto-generated: Include 'Authorization: Bearer {}' on API calls)", token);
+        println!("  (Auto-authenticated in browser via session meta tag)");
     } else {
         println!("  Auth Token : [Configured from CLI]");
     }

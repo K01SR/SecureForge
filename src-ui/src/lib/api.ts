@@ -17,7 +17,88 @@ import {
 } from './types';
 
 // Detect if running inside Tauri desktop runtime
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const isTauri =
+  typeof window !== 'undefined' &&
+  ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+
+function getMetaToken(): string {
+  if (typeof document !== 'undefined') {
+    const meta = document.querySelector('meta[name="secureforge-api-token"]');
+    if (meta) {
+      const content = meta.getAttribute('content');
+      if (content) return content;
+    }
+  }
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem('secureforge_api_token') || '';
+  }
+  return '';
+}
+
+let cachedSessionToken = '';
+
+async function getAuthToken(baseUrl: string): Promise<string> {
+  if (cachedSessionToken) return cachedSessionToken;
+  const meta = getMetaToken();
+  if (meta) {
+    cachedSessionToken = meta;
+    return cachedSessionToken;
+  }
+  try {
+    const res = await fetch(`${baseUrl}/api/auth/token`);
+    const ctype = res.headers.get('content-type') || '';
+    if (res.ok && ctype.includes('application/json')) {
+      const data = await res.json();
+      if (data.token) {
+        cachedSessionToken = data.token;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('secureforge_api_token', data.token);
+        }
+        return cachedSessionToken;
+      }
+    }
+  } catch {
+    // Fallthrough
+  }
+  return '';
+}
+
+async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:7878';
+  const token = await getAuthToken(baseUrl);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (netErr: any) {
+    throw new Error(`Failed to connect to SecureForge backend: ${netErr.message || netErr}`);
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Server returned HTTP ${res.status}: ${txt.slice(0, 100)}`);
+    }
+    throw new Error(
+      `Unexpected server response (${contentType || 'HTML'}). Ensure SecureForge backend server is running on http://127.0.0.1:7878`
+    );
+  }
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.message || `Request failed with HTTP status ${res.status}`);
+  }
+  return json as T;
+}
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (isTauri) {
@@ -25,68 +106,50 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
     return invoke<T>(cmd, args);
   }
 
-  // Real REST API execution over HTTP server when accessed in a browser
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:7878';
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('secureforge_api_token') : '';
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
 
   try {
     switch (cmd) {
       case 'list_drives': {
-        const res = await fetch(`${baseUrl}/api/drives`, { headers });
-        const json = await res.json();
+        const json: any = await safeFetchJson(`${baseUrl}/api/drives`);
         if (json.status === 'success') return json.data as T;
         throw new Error(json.message || 'Failed to query system drives');
       }
 
       case 'start_wipe': {
-        const res = await fetch(`${baseUrl}/api/wipe`, {
+        return await safeFetchJson<T>(`${baseUrl}/api/wipe`, {
           method: 'POST',
-          headers,
           body: JSON.stringify(args?.config || args),
         });
-        return (await res.json()) as T;
       }
 
       case 'start_scan': {
-        const res = await fetch(`${baseUrl}/api/scan`, {
+        return await safeFetchJson<T>(`${baseUrl}/api/scan`, {
           method: 'POST',
-          headers,
           body: JSON.stringify(args?.config || args),
         });
-        return (await res.json()) as T;
       }
 
       case 'list_cases': {
-        const res = await fetch(`${baseUrl}/api/cases`, { headers });
-        const json = await res.json();
+        const json: any = await safeFetchJson(`${baseUrl}/api/cases`);
         return (json.data || []) as T;
       }
 
       case 'list_plugins': {
-        const res = await fetch(`${baseUrl}/api/plugins`, { headers });
-        const json = await res.json();
+        const json: any = await safeFetchJson(`${baseUrl}/api/plugins`);
         return (json.data || []) as T;
       }
 
       case 'get_drive_entropy': {
-        const res = await fetch(`${baseUrl}/api/entropy`, {
+        const json: any = await safeFetchJson(`${baseUrl}/api/entropy`, {
           method: 'POST',
-          headers,
           body: JSON.stringify(args),
         });
-        const json = await res.json();
         return (json.data || []) as T;
       }
 
       default:
-        throw new Error(`Command '${cmd}' requires direct Tauri runtime or mapped REST route.`);
+        throw new Error(`Command '${cmd}' requires active desktop runtime or mapped REST route.`);
     }
   } catch (err: any) {
     console.warn(`[SecureForge API] ${cmd} error:`, err);
