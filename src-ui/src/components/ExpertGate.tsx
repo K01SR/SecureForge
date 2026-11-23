@@ -3,7 +3,7 @@ import { useExpertMode } from '../hooks/useExpertMode';
 import { Lock, Unlock, Key, Shield, X, AlertTriangle } from 'lucide-react';
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess: (passphrase?: string) => void;
   onCancel: () => void;
 }
 
@@ -26,14 +26,14 @@ export function ExpertGate({ onSuccess, onCancel }: Props) {
     const success = isConfigured ? await verify(pass) : await setup(pass);
     setLoading(false);
     if (success) {
-      onSuccess();
+      onSuccess(pass);
     } else {
       setError(isConfigured ? 'Authentication failed: Invalid cryptographic passphrase' : 'Setup failed');
     }
   };
 
   if (isExpert) {
-    setTimeout(onSuccess, 0);
+    setTimeout(() => onSuccess(pass), 0);
     return null;
   }
 

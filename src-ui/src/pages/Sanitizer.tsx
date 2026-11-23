@@ -76,10 +76,12 @@ export function Sanitizer() {
     }
   }, [selectedDrive, activeTab]);
 
+  const [expertPassphrase, setExpertPassphrase] = useState<string>('');
+
   const handleStartOperation = () => {
     if (activeTab === 'drive' && !selectedDrive) return;
     if (activeTab === 'firmware' && !selectedDrive) return;
-    if (activeTab === 'firmware') {
+    if (activeTab === 'firmware' || (activeTab === 'drive' && selectedDrive?.is_system_drive)) {
       setShowExpertGate(true);
       return;
     }
@@ -109,6 +111,7 @@ export function Sanitizer() {
           device_path: selectedDrive.path,
           method,
           verify: verifyPostWipe,
+          expert_passphrase: expertPassphrase || undefined,
         });
         setWipeResult(res);
       } else if (activeTab === 'shred') {
@@ -128,6 +131,7 @@ export function Sanitizer() {
         const res = await FirmwareAPI.erase({
           device_path: selectedDrive.path,
           method: firmwareMethod,
+          expert_passphrase: expertPassphrase || undefined,
         });
         setFirmwareResult(res);
       }
@@ -551,10 +555,11 @@ export function Sanitizer() {
         onCancel={() => setShowConfirm(false)}
       />
 
-      {/* Expert Gate for Firmware Methods */}
+      {/* Expert Gate for Firmware Methods & System Drive Erasures */}
       {showExpertGate && (
         <ExpertGate
-          onSuccess={() => {
+          onSuccess={(pass) => {
+            if (pass) setExpertPassphrase(pass);
             setShowExpertGate(false);
             setShowConfirm(true);
           }}

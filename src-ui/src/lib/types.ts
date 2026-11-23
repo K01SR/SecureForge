@@ -29,6 +29,7 @@ export interface WipeConfig {
   device_path: string;
   method: string;
   verify: boolean;
+  expert_passphrase?: string;
 }
 
 export interface WipeProgress {
@@ -125,6 +126,7 @@ export interface FirmwareEraseConfig {
   device_path: string;
   method: string;
   ata_password?: string;
+  expert_passphrase?: string;
 }
 
 export interface FirmwareEraseResult {

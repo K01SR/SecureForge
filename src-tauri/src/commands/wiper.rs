@@ -9,12 +9,14 @@ use sih149_core::wiper::verify::verify_wipe;
 use std::io::{Seek, SeekFrom, Write};
 use std::time::Instant;
 
+use crate::commands::auth::verify_expert_passphrase;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WipeConfig {
     pub device_path: String,
     pub method: String,
     pub verify: bool,
-    pub expert: Option<bool>,
+    pub expert_passphrase: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,18 +47,24 @@ lazy_static::lazy_static! {
 pub async fn start_wipe(config: WipeConfig, app_handle: AppHandle) -> Result<WipeResult, String> {
     WIPE_CANCEL_FLAG.store(false, Ordering::SeqCst);
 
+    let path = std::path::Path::new(&config.device_path);
+    if sih149_core::wiper::file_wiper::is_protected_drive(path) {
+        let authorized = match &config.expert_passphrase {
+            Some(pass) => verify_expert_passphrase(pass.clone()).await.unwrap_or(false),
+            None => false,
+        };
+        if !authorized {
+            return Err(format!(
+                "Safety guard: Refusing to wipe system/boot drive {} — expert passphrase required and did not verify.",
+                config.device_path
+            ));
+        }
+    }
+
     let app_handle_bg = app_handle.clone();
     let config_bg = config.clone();
 
     let result = tokio::task::spawn_blocking(move || -> Result<WipeResult, String> {
-        let path = std::path::Path::new(&config_bg.device_path);
-        if sih149_core::wiper::file_wiper::is_protected_drive(path) && !config_bg.expert.unwrap_or(false) {
-            return Err(format!(
-                "Safety guard: Refusing to wipe system/boot drive {} without explicit expert authorization.",
-                config_bg.device_path
-            ));
-        }
-
         let mut disk = BlockDevice::open(&config_bg.device_path)
             .map_err(|e| format!("Failed to open {}: {}", config_bg.device_path, e))?;
         let size = disk.size().map_err(|e| e.to_string())?;
