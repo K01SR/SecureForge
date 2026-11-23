@@ -41,7 +41,7 @@ struct WipeRequest {
     device_path: String,
     method: String,
     verify: bool,
-    expert: Option<bool>,
+    expert_passphrase: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -84,15 +84,15 @@ fn verify_token(state: &AppState, token: &str) -> bool {
         == 0
 }
 
-/// Authentication middleware for all `/api/*` routes (except `/health` and `/api/auth/token`).
+/// Authentication middleware for all `/api/*` routes (except `/health`).
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     req: axum::extract::Request,
     next: Next,
 ) -> Result<axum::response::Response, (StatusCode, Json<serde_json::Value>)> {
     let path = req.uri().path();
-    // /health, token bootstrap, and non-api routes do not require Bearer header
-    if path == "/health" || path == "/api/auth/token" || !path.starts_with("/api") {
+    // Only /health and non-api static asset routes do not require Bearer header
+    if path == "/health" || !path.starts_with("/api") {
         return Ok(next.run(req).await);
     }
 
@@ -115,7 +115,7 @@ async fn auth_middleware(
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
                 "status": "error",
-                "message": "Unauthorized: Missing or invalid Bearer token. Include 'Authorization: Bearer <TOKEN>' header."
+                "message": "Unauthorized: Missing or invalid Bearer token."
             })),
         )),
     }
@@ -129,14 +129,6 @@ async fn health() -> impl IntoResponse {
         "status": "ok",
         "version": env!("CARGO_PKG_VERSION"),
         "mode": "server"
-    }))
-}
-
-/// GET /api/auth/token — local session token retrieval
-async fn get_auth_token(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    Json(serde_json::json!({
-        "status": "success",
-        "token": state.api_token,
     }))
 }
 
@@ -154,24 +146,32 @@ async fn get_drives(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
     }
 }
 
-/// POST /api/wipe — enqueue a wipe job with protected system drive check
+/// POST /api/wipe — enqueue a wipe job with protected system drive check and verified passphrase
 async fn post_wipe(
     State(_state): State<Arc<AppState>>,
     Json(req): Json<WipeRequest>,
 ) -> impl IntoResponse {
     let target = FsPath::new(&req.device_path);
-    if sih149_core::wiper::file_wiper::is_protected_drive(target) && !req.expert.unwrap_or(false) {
-        return (
-            StatusCode::FORBIDDEN,
-            Json(WipeResponse {
-                job_id: "".into(),
-                status: "forbidden".into(),
-                message: format!(
-                    "Safety guard: Refusing to wipe system/boot drive {} without expert authorization.",
-                    req.device_path
-                ),
-            }),
-        );
+    if sih149_core::wiper::file_wiper::is_protected_drive(target) {
+        let authorized = match &req.expert_passphrase {
+            Some(pass) => crate::commands::auth::verify_expert_passphrase(pass.clone())
+                .await
+                .unwrap_or(false),
+            None => false,
+        };
+        if !authorized {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(WipeResponse {
+                    job_id: "".into(),
+                    status: "forbidden".into(),
+                    message: format!(
+                        "Safety guard: Refusing to wipe system/boot drive {} — expert passphrase required and did not verify.",
+                        req.device_path
+                    ),
+                }),
+            );
+        }
     }
 
     let ts = std::time::SystemTime::now()
@@ -301,16 +301,11 @@ fn find_frontend_dist() -> Option<PathBuf> {
     None
 }
 
-/// Serve index.html with injected session token meta tag
-async fn serve_index_html(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+/// Serve index.html without token injection (token must be provided out-of-band by operator)
+async fn serve_index_html(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
     if let Some(dist_dir) = find_frontend_dist() {
         let index_path = dist_dir.join("index.html");
-        if let Ok(mut html) = fs::read_to_string(index_path) {
-            let meta_tag = format!(
-                r#"<meta name="secureforge-api-token" content="{}"></head>"#,
-                state.api_token
-            );
-            html = html.replace("</head>", &meta_tag);
+        if let Ok(html) = fs::read_to_string(index_path) {
             return (
                 StatusCode::OK,
                 [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -351,14 +346,19 @@ async fn fallback_html_handler() -> impl IntoResponse {
 
 /// Build the full axum router with all API routes, restricted CORS layer, and frontend file server.
 pub fn build_router(state: Arc<AppState>) -> Router {
-    // Restricted CORS layer (avoid wildcard / permissive on destructive API)
+    #[allow(unused_mut)]
+    let mut allowed_origins = vec![
+        format!("http://localhost:{}", state.port).parse().unwrap_or(HeaderValue::from_static("http://localhost:7878")),
+        format!("http://127.0.0.1:{}", state.port).parse().unwrap_or(HeaderValue::from_static("http://127.0.0.1:7878")),
+    ];
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(v) = "http://localhost:5173".parse() { allowed_origins.push(v); }
+        if let Ok(v) = "http://127.0.0.1:5173".parse() { allowed_origins.push(v); }
+    }
+
     let cors = tower_http::cors::CorsLayer::new()
-        .allow_origin([
-            format!("http://localhost:{}", state.port).parse().unwrap_or(HeaderValue::from_static("http://localhost:7878")),
-            format!("http://127.0.0.1:{}", state.port).parse().unwrap_or(HeaderValue::from_static("http://127.0.0.1:7878")),
-            "http://localhost:5173".parse().unwrap_or(HeaderValue::from_static("http://localhost:5173")),
-            "http://127.0.0.1:5173".parse().unwrap_or(HeaderValue::from_static("http://127.0.0.1:5173")),
-        ])
+        .allow_origin(allowed_origins)
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
@@ -372,7 +372,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     let api_router = Router::new()
         .route("/health", get(health))
-        .route("/api/auth/token", get(get_auth_token))
         .route("/api/drives", get(get_drives))
         .route("/api/wipe", post(post_wipe))
         .route("/api/scan", post(post_scan))
@@ -432,7 +431,7 @@ pub async fn start_server(
     println!("  Web UI URL : http://{}", addr);
     if was_generated {
         println!("  Auth Token : {}", token);
-        println!("  (Auto-authenticated in browser via session meta tag)");
+        println!("  (Provide this Bearer token in the web UI settings)");
     } else {
         println!("  Auth Token : [Configured from CLI]");
     }
