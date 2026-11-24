@@ -60,8 +60,23 @@ pub fn list_cases() -> Result<Vec<CaseRecord>, String> {
     Ok(result)
 }
 
+/// Only allow case IDs that look like UUIDs or safe alphanumeric tokens —
+/// blocks path traversal ("../") and JSON-breaking characters in one check.
+fn validate_case_id(case_id: &str) -> Result<(), String> {
+    let ok = !case_id.is_empty()
+        && case_id.len() <= 128
+        && case_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if ok {
+        Ok(())
+    } else {
+        Err(format!("Invalid case_id: {}", case_id))
+    }
+}
+
 #[tauri::command]
 pub fn export_report(case_id: String, format: String, output_path: String) -> Result<(), String> {
+    validate_case_id(&case_id)?;
+
     let template = match format.to_lowercase().as_str() {
         "recovery" => "recovery",
         _ => "erasure",
@@ -99,6 +114,10 @@ pub fn export_report(case_id: String, format: String, output_path: String) -> Re
 
 #[tauri::command]
 pub fn get_audit_log(case_id: String) -> Result<String, String> {
-    // Dummy JSON
-    Ok(format!(r#"{{ "case_id": "{}", "events": [] }}"#, case_id))
+    validate_case_id(&case_id)?;
+    let payload = serde_json::json!({
+        "case_id": case_id,
+        "events": []
+    });
+    Ok(payload.to_string())
 }
