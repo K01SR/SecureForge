@@ -153,11 +153,21 @@ pub async fn shred_files(config: ShredConfig, app_handle: AppHandle) -> Result<S
 }
 
 /// Recursively collect individual file paths under `dir`.
+/// Uses file_type() (lstat) — NOT path.is_dir() — so symlinks are never
+/// followed into arbitrary parts of the filesystem.
 fn collect_files(dir: &Path, out: &mut Vec<String>) {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
             let p = entry.path();
-            if p.is_dir() {
+            if file_type.is_symlink() {
+                tracing::warn!("Skipping symlink during shred collection (not followed): {}", p.display());
+                continue;
+            }
+            if file_type.is_dir() {
                 collect_files(&p, out);
             } else {
                 out.push(p.to_string_lossy().into_owned());
@@ -167,11 +177,19 @@ fn collect_files(dir: &Path, out: &mut Vec<String>) {
 }
 
 /// Recursively collect directory paths under `dir` (not including `dir` itself).
+/// Same lstat-based symlink exclusion as collect_files.
 fn collect_dirs(dir: &Path, out: &mut Vec<String>) {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+            if file_type.is_symlink() {
+                continue;
+            }
             let p = entry.path();
-            if p.is_dir() {
+            if file_type.is_dir() {
                 collect_dirs(&p, out);
                 out.push(p.to_string_lossy().into_owned());
             }
