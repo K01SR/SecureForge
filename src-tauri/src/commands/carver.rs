@@ -214,17 +214,40 @@ pub fn cancel_scan() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_file_hex_preview(file_path: String, offset: u64, length: usize) -> Result<String, String> {
+pub fn get_file_hex_preview(
+    file_path: String,
+    offset: u64,
+    length: usize,
+    allowed_root: Option<String>,
+) -> Result<String, String> {
     use std::fs::File;
     use std::io::{Read, Seek, SeekFrom};
     use std::path::Path;
 
     let path = Path::new(&file_path);
-    if sih149_core::wiper::file_wiper::is_protected_path(path) {
-        return Err(format!("Access denied: Refusing to read raw hex of protected system path: {}", file_path));
+    let resolved = path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve {}: {}", file_path, e))?;
+
+    if let Some(ref root_str) = allowed_root {
+        if !root_str.is_empty() {
+            let root = Path::new(root_str)
+                .canonicalize()
+                .map_err(|e| format!("Invalid allowed_root: {}", e))?;
+            if !resolved.starts_with(&root) {
+                return Err(format!(
+                    "Access denied: {} is outside the permitted case directory {}",
+                    file_path, root_str
+                ));
+            }
+        }
     }
 
-    let mut file = File::open(path).map_err(|e| format!("Failed to open {}: {}", file_path, e))?;
+    if sih149_core::wiper::file_wiper::is_protected_path(&resolved) {
+        return Err(format!("Access denied: protected system path: {}", file_path));
+    }
+
+    let mut file = File::open(&resolved).map_err(|e| format!("Failed to open {}: {}", file_path, e))?;
     file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
     let len = length.min(4096).max(16);
     let mut buf = vec![0u8; len];
