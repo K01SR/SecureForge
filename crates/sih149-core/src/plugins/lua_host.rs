@@ -64,7 +64,9 @@ impl LuaPluginHost {
             let max_size: u64 = table.get("max_size")?;
             let has_validate: bool = table.contains_key("validate")?;
             
-            // Convert hex to bytes
+            if header_hex.len() % 2 != 0 {
+                return Err(mlua::Error::RuntimeError("Header hex string must have even length".to_string()));
+            }
             let header = (0..header_hex.len())
                 .step_by(2)
                 .map(|i| u8::from_str_radix(&header_hex[i..i + 2], 16))
@@ -72,11 +74,16 @@ impl LuaPluginHost {
                 .map_err(|e| mlua::Error::RuntimeError(format!("Invalid hex: {}", e)))?;
                 
             let footer = match footer_hex {
-                Some(hex) => Some((0..hex.len())
-                    .step_by(2)
-                    .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
-                    .collect::<Result<Vec<u8>, _>>()
-                    .map_err(|e| mlua::Error::RuntimeError(format!("Invalid hex: {}", e)))?),
+                Some(hex) => {
+                    if hex.len() % 2 != 0 {
+                        return Err(mlua::Error::RuntimeError("Footer hex string must have even length".to_string()));
+                    }
+                    Some((0..hex.len())
+                        .step_by(2)
+                        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
+                        .collect::<Result<Vec<u8>, _>>()
+                        .map_err(|e| mlua::Error::RuntimeError(format!("Invalid hex: {}", e)))?)
+                }
                 None => None,
             };
             

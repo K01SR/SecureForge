@@ -92,7 +92,11 @@ pub fn parse_size_string(s: &str) -> Result<u64, CoreError> {
         _ => return Err(CoreError::Parse(format!("Invalid size unit: {}", unit_str))),
     };
     
-    Ok(value * multiplier)
+    // checked_mul prevents silent integer overflow (a crafted "max_size"
+    // like 9999999999999999999 TB would otherwise wrap around to a small
+    // number and bypass size-based carve limits).
+    value.checked_mul(multiplier)
+        .ok_or_else(|| CoreError::Parse(format!("Size overflows u64: {}", s)))
 }
 
 pub fn decode_escape_sequence(s: &str) -> Vec<u8> {
