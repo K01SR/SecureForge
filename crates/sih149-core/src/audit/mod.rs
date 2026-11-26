@@ -42,9 +42,10 @@ impl AuditEngine {
             result,
             prev_hash: String::new(),
             entry_hash: String::new(),
+            seq: 0,
         };
         
-        let mut chain = self.chain.lock().unwrap();
+        let mut chain = self.chain.lock().map_err(|e| CoreError::Disk(e.to_string()))?;
         chain.append(entry)
     }
     
@@ -58,19 +59,22 @@ impl AuditEngine {
             result,
             prev_hash: String::new(),
             entry_hash: String::new(),
+            seq: 0,
         };
         
-        let mut chain = self.chain.lock().unwrap();
+        let mut chain = self.chain.lock().map_err(|e| CoreError::Disk(e.to_string()))?;
         chain.append(entry)
     }
     
     pub fn verify_chain(&self) -> bool {
-        let chain = self.chain.lock().unwrap();
+        let Ok(chain) = self.chain.lock() else {
+            return false;
+        };
         chain.verify()
     }
     
     pub fn export_json(&self, path: &Path) -> Result<(), CoreError> {
-        let chain = self.chain.lock().unwrap();
+        let chain = self.chain.lock().map_err(|e| CoreError::Disk(e.to_string()))?;
         let log = chain.to_audit_log(self.case_id.clone(), self.operator.clone());
         let json = serde_json::to_string_pretty(&log)
             .map_err(|e| CoreError::Parse(e.to_string()))?;
@@ -78,7 +82,9 @@ impl AuditEngine {
     }
     
     pub fn chain_tip(&self) -> String {
-        let chain = self.chain.lock().unwrap();
+        let Ok(chain) = self.chain.lock() else {
+            return String::new();
+        };
         chain.tip().to_string()
     }
 }

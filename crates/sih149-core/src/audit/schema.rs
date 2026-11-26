@@ -22,6 +22,9 @@ pub struct AuditEntry {
     pub result: OperationResult,
     pub prev_hash: String,
     pub entry_hash: String,
+    /// Monotonic sequence number (chain position) bound into the hash to
+    /// prevent reordering/duplication attacks against the chain.
+    pub seq: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

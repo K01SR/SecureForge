@@ -3,6 +3,24 @@ use std::path::Path;
 use crate::error::CoreError;
 use std::fs;
 
+/// Compare two ASCII hex digest strings in constant time (no early exit on
+/// the first mismatching byte). This prevents a remote/IPC timing oracle
+/// from recovering a digest byte-by-byte via `verify_file_hash`.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    let len = a.len().max(b.len());
+    let mut diff: u8 = 0;
+    let mut i = 0;
+    while i < len {
+        let ai = a.get(i).copied().unwrap_or(0);
+        let bi = b.get(i).copied().unwrap_or(0);
+        diff |= ai ^ bi;
+        i += 1;
+    }
+    diff == 0
+}
+
 /// Compute SHA-256 of a file
 pub fn hash_file(path: &Path) -> Result<String, CoreError> {
     let bytes = fs::read(path).map_err(CoreError::Io)?;
@@ -16,10 +34,10 @@ pub fn hash_bytes(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-/// Verify a file's hash matches expected
+/// Verify a file's hash matches expected (constant-time comparison)
 pub fn verify_file_hash(path: &Path, expected_hash: &str) -> Result<bool, CoreError> {
     let hash = hash_file(path)?;
-    Ok(hash == expected_hash)
+    Ok(constant_time_eq(&hash, expected_hash))
 }
 
 /// Simple report integrity record saved alongside PDF

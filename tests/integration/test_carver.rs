@@ -137,6 +137,7 @@ fn test_hash_chain_append_and_verify() {
         },
         prev_hash: String::new(),
         entry_hash: String::new(),
+        seq: 0,
     }).unwrap();
     assert!(chain.verify());
 }
@@ -166,6 +167,7 @@ fn test_hash_chain_tamper_detection() {
         },
         prev_hash: String::new(),
         entry_hash: String::new(),
+        seq: 0,
     }).unwrap();
     assert!(chain.verify());
 }

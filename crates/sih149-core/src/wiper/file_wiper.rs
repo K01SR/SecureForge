@@ -39,9 +39,22 @@ pub struct WipeFileResult {
 pub fn is_protected_path(path: &Path) -> bool {
     let resolved = match std::fs::canonicalize(path) {
         Ok(p) => p,
-        // Canonicalize fails on non-existent targets — treat as not protected,
-        // existence check is the caller's responsibility.
-        Err(_) => path.to_path_buf(),
+        // Canonicalize may fail if the final component does not exist yet. In
+        // that case we still resolve the existing parent directory (via
+        // canonicalize) and re-append the basename, so that relative paths,
+        // `..` components and parent-directory symlinks are normalized. Falling
+        // back to the raw path here would let an un-normalized path such as
+        // "/tmp/../../etc/shadow" or "/etc/../etc/passwd" evade the protected
+        // list.
+        Err(_) => match path.parent() {
+            Some(parent) => match std::fs::canonicalize(parent) {
+                Ok(canon_parent) => canon_parent.join(
+                    path.file_name().unwrap_or_default(),
+                ),
+                Err(_) => path.to_path_buf(),
+            },
+            None => path.to_path_buf(),
+        },
     };
     let protected = [
         "/boot", "/bin", "/sbin", "/lib", "/lib64",
@@ -62,8 +75,16 @@ pub fn is_protected_drive(device: &Path) -> bool {
         "/dev/vda",
         "/dev/root",
     ];
-    let canonical = std::fs::canonicalize(device)
-        .unwrap_or_else(|_| device.to_path_buf());
+    let canonical = match std::fs::canonicalize(device) {
+        Ok(c) => c,
+        Err(_) => match device.parent() {
+            Some(parent) => match std::fs::canonicalize(parent) {
+                Ok(cp) => cp.join(device.file_name().unwrap_or_default()),
+                Err(_) => device.to_path_buf(),
+            },
+            None => device.to_path_buf(),
+        },
+    };
     let s = canonical.to_string_lossy();
     protected_prefixes.iter().any(|prefix| s == *prefix || s.starts_with(prefix))
 }
