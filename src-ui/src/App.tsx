@@ -20,12 +20,32 @@ import {
   Clock,
 } from 'lucide-react';
 
+import { TokenModal } from './components/TokenModal';
+import { checkIsTauri, getSavedToken } from './lib/api';
+
 type Page = 'dash' | 'wipe' | 'shred' | 'carve' | 'reports' | 'expert' | 'plugins';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dash');
   const { isExpert } = useExpertMode();
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [showTokenModal, setShowTokenModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Only prompt for token in web browser mode when no token is saved
+    if (!checkIsTauri() && !getSavedToken()) {
+      setShowTokenModal(true);
+    }
+
+    const handleAuthRequired = () => {
+      if (!checkIsTauri()) {
+        setShowTokenModal(true);
+      }
+    };
+
+    window.addEventListener('secureforge-auth-required', handleAuthRequired);
+    return () => window.removeEventListener('secureforge-auth-required', handleAuthRequired);
+  }, []);
 
   useEffect(() => {
     const updateTime = () => {
@@ -199,6 +219,15 @@ export default function App() {
           {page === 'plugins' && <Plugins />}
         </main>
       </div>
+
+      {/* Web Mode Bearer Authentication Modal */}
+      <TokenModal
+        isOpen={showTokenModal}
+        onSuccess={() => {
+          setShowTokenModal(false);
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

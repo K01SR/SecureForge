@@ -1,3 +1,4 @@
+import { isTauri, invoke } from '@tauri-apps/api/core';
 import {
   DriveInfo,
   WipeConfig,
@@ -16,56 +17,31 @@ import {
   PluginItem,
 } from './types';
 
-// Detect if running inside Tauri desktop runtime
-const isTauri =
-  typeof window !== 'undefined' &&
-  ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-
-function getMetaToken(): string {
-  if (typeof document !== 'undefined') {
-    const meta = document.querySelector('meta[name="secureforge-api-token"]');
-    if (meta) {
-      const content = meta.getAttribute('content');
-      if (content) return content;
-    }
+// Runtime detection of Tauri desktop environment
+export function checkIsTauri(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    return isTauri() || '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
+  } catch {
+    return false;
   }
+}
+
+export function getSavedToken(): string {
   if (typeof localStorage !== 'undefined') {
     return localStorage.getItem('secureforge_api_token') || '';
   }
   return '';
 }
 
-let cachedSessionToken = '';
-
-async function getAuthToken(baseUrl: string): Promise<string> {
-  if (cachedSessionToken) return cachedSessionToken;
-  const meta = getMetaToken();
-  if (meta) {
-    cachedSessionToken = meta;
-    return cachedSessionToken;
+export function saveToken(token: string) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('secureforge_api_token', token.trim());
   }
-  try {
-    const res = await fetch(`${baseUrl}/api/auth/token`);
-    const ctype = res.headers.get('content-type') || '';
-    if (res.ok && ctype.includes('application/json')) {
-      const data = await res.json();
-      if (data.token) {
-        cachedSessionToken = data.token;
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('secureforge_api_token', data.token);
-        }
-        return cachedSessionToken;
-      }
-    }
-  } catch {
-    // Fallthrough
-  }
-  return '';
 }
 
 async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:7878';
-  const token = await getAuthToken(baseUrl);
+  const token = getSavedToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -79,7 +55,14 @@ async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T> 
   try {
     res = await fetch(url, { ...options, headers });
   } catch (netErr: any) {
-    throw new Error(`Failed to connect to SecureForge backend: ${netErr.message || netErr}`);
+    throw new Error(`Failed to connect to SecureForge backend server: ${netErr.message || netErr}`);
+  }
+
+  if (res.status === 401) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('secureforge-auth-required'));
+    }
+    throw new Error('Unauthorized: Missing or invalid Bearer token.');
   }
 
   const contentType = res.headers.get('content-type') || '';
@@ -101,11 +84,12 @@ async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T> 
 }
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (isTauri) {
-    const { invoke } = await import('@tauri-apps/api/core');
+  // 1. Direct Tauri IPC in desktop application
+  if (checkIsTauri()) {
     return invoke<T>(cmd, args);
   }
 
+  // 2. HTTP REST fallback when running in standard browser
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:7878';
 
   try {
@@ -158,7 +142,7 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 async function tauriListen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
-  if (isTauri) {
+  if (checkIsTauri()) {
     const { listen } = await import('@tauri-apps/api/event');
     const unlisten = await listen<T>(event, (e) => handler(e.payload));
     return unlisten;
@@ -187,8 +171,8 @@ export const ShredderAPI = {
 export const CarverAPI = {
   start: (config: ScanConfig): Promise<ScanResult> => tauriInvoke('start_scan', { config }),
   cancel: (): Promise<void> => tauriInvoke('cancel_scan'),
-  getHexPreview: (filePath: string, offset: number, length: number): Promise<string> =>
-    tauriInvoke('get_file_hex_preview', { filePath, offset, length }),
+  getHexPreview: (filePath: string, offset: number, length: number, allowedRoot?: string): Promise<string> =>
+    tauriInvoke('get_file_hex_preview', { filePath, offset, length, allowedRoot }),
   onProgress: (cb: (p: ScanProgress) => void) => tauriListen<ScanProgress>('scan-progress', cb),
 };
 
