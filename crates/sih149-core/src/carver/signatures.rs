@@ -35,6 +35,11 @@ impl SignatureDatabase {
     /// Convert magic hex string to bytes
     pub fn parse_hex(hex_str: &str) -> Result<Vec<u8>> {
         let hex_str = hex_str.replace(" ", "");
+        if hex_str.len() % 2 != 0 {
+            return Err(crate::error::CoreError::Parse(format!(
+                "Invalid magic hex string (odd length): '{}'", hex_str
+            )));
+        }
         (0..hex_str.len())
             .step_by(2)
             .map(|i| {

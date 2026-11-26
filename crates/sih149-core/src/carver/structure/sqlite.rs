@@ -19,6 +19,9 @@ pub fn validate_sqlite(data: &[u8]) -> Result<bool> {
     if page_size == 1 {
         page_size = 65536;
     }
+    if page_size == 0 {
+        return Ok(false);
+    }
 
     // The database size must be a multiple of the page size
     if (data.len() as u32) % page_size != 0 {

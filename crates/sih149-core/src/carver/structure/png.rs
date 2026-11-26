@@ -24,8 +24,14 @@ pub fn validate_png(data: &[u8]) -> Result<bool> {
             return Ok(true);
         }
 
-        // chunk length + chunk type (4) + data (length) + CRC (4)
-        offset += 4 + 4 + length + 4;
+        // chunk length + chunk type (4) + data (length) + CRC (4).
+        // Use checked_add to prevent integer overflow on a maliciously
+        // crafted chunk length (length + 12 could wrap and skip past the
+        // buffer, making validation spuriously pass).
+        match offset.checked_add(4 + 4 + length + 4) {
+            Some(next) => offset = next,
+            None => return Ok(false),
+        }
     }
 
     Ok(false)
