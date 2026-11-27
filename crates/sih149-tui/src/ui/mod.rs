@@ -1,124 +1,159 @@
 pub mod dashboard;
 pub mod drives;
+pub mod entropy;
 pub mod wipe;
 pub mod carver;
 pub mod help;
 
-use ratatui::{layout::{Constraint, Direction, Layout, Rect}, Frame};
-use crate::app::App;
+use ratatui::{
+    Frame,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Style, Modifier, Stylize},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    text::{Line, Span},
+};
+use crate::app::{App, Popup, Screen};
 use crate::theme::Theme;
-use ratatui::style::{Style, Stylize};
-use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::text::{Line, Span};
 
+/// Main render entry point
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
-
-    // Split into header, body, status bar
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(1)])
+        .constraints([
+            Constraint::Length(3),  // header + tab bar
+            Constraint::Min(0),     // content
+            Constraint::Length(1),  // status bar
+        ])
         .split(area);
 
     render_header(frame, chunks[0], app);
 
     match app.screen {
-        crate::app::Screen::Dashboard => dashboard::render(frame, chunks[1], app),
-        crate::app::Screen::DriveManager => drives::render(frame, chunks[1], app),
-        crate::app::Screen::WipeWizard => wipe::render(frame, chunks[1], app),
-        crate::app::Screen::Carver => carver::render(frame, chunks[1], app),
-        crate::app::Screen::Help => help::render(frame, chunks[1], app),
+        Screen::Dashboard    => dashboard::render(frame, chunks[1], app),
+        Screen::DriveManager => drives::render(frame, chunks[1], app),
+        Screen::Entropy      => entropy::render(frame, chunks[1], app),
+        Screen::WipeWizard   => wipe::render(frame, chunks[1], app),
+        Screen::Carver       => carver::render(frame, chunks[1], app),
+        Screen::Help         => help::render(frame, chunks[1], app),
     }
 
     render_statusbar(frame, chunks[2], app);
 
-    // Overlay popup if any
-    if app.popup != crate::app::Popup::None {
+    if app.popup != Popup::None {
         render_popup(frame, area, app);
     }
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
-    let tabs = vec![
-        ("F1 Dashboard", crate::app::Screen::Dashboard),
-        ("F2 Drives", crate::app::Screen::DriveManager),
-        ("F3 Wipe", crate::app::Screen::WipeWizard),
-        ("F4 Carver", crate::app::Screen::Carver),
-        ("F5 Help", crate::app::Screen::Help),
+    let tabs: &[(&str, Screen)] = &[
+        (" F1  Dashboard ", Screen::Dashboard),
+        (" F2  Drives     ", Screen::DriveManager),
+        (" F3  Entropy    ", Screen::Entropy),
+        (" F4  Sanitize   ", Screen::WipeWizard),
+        (" F5  Carver     ", Screen::Carver),
+        (" F6  Help       ", Screen::Help),
     ];
 
-    let spans: Vec<Span> = tabs.iter().enumerate().map(|(i, (label, screen))| {
-        let active = &app.screen == screen;
-        let sep = if i == 0 { "" } else { "  " };
-        if active {
-            Span::styled(format!("{} {} ", sep, label), Style::default().fg(Theme::BG).bg(Theme::ACCENT).bold())
+    let tab_spans: Vec<Span> = tabs.iter().map(|(label, screen)| {
+        if &app.screen == screen {
+            Span::styled(*label, Style::default()
+                .fg(Theme::BG)
+                .bg(Theme::CYAN)
+                .add_modifier(Modifier::BOLD))
         } else {
-            Span::styled(format!("{} {} ", sep, label), Style::default().fg(Theme::MUTED).bg(Theme::SURFACE))
+            Span::styled(*label, Style::default()
+                .fg(Theme::TEXT_DIM)
+                .bg(Theme::SURFACE))
         }
     }).collect();
 
-    let logo = Span::styled(" ⬡ SECUREFORGE ", Style::default().fg(Theme::ACCENT).bg(Theme::SURFACE).bold());
-    let mut all_spans = vec![logo, Span::raw("  ")];
-    all_spans.extend(spans);
+    // Left: logo + tabs on same line
+    let logo = Span::styled(
+        " ⬡ SECUREFORGE ",
+        Style::default().fg(Theme::CYAN).bg(Theme::BG).add_modifier(Modifier::BOLD),
+    );
+    let sep = Span::styled("│", Style::default().fg(Theme::BORDER).bg(Theme::SURFACE));
 
-    let line = Line::from(all_spans);
-    let block = Block::default().style(Style::default().bg(Theme::SURFACE));
-    let para = Paragraph::new(line).block(block);
+    let mut spans = vec![logo, Span::styled("  ", Style::default().bg(Theme::SURFACE))];
+    for (i, s) in tab_spans.into_iter().enumerate() {
+        if i > 0 {
+            spans.push(sep.clone());
+        }
+        spans.push(s);
+    }
+
+    let block = Block::default()
+        .style(Style::default().bg(Theme::SURFACE))
+        .borders(Borders::BOTTOM)
+        .border_style(Style::default().fg(Theme::BORDER));
+    let para = Paragraph::new(Line::from(spans)).block(block);
     frame.render_widget(para, area);
 }
 
 fn render_statusbar(frame: &mut Frame, area: Rect, app: &App) {
-    let msg = if let Some((ref m, ref t)) = app.status_msg {
-        if t.elapsed().as_secs() < 5 { m.clone() } else { String::new() }
-    } else { String::new() };
+    let spinner = ["⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"][(app.tick / 2) as usize % 8];
 
-    let keys_hint = match app.screen {
-        crate::app::Screen::DriveManager => "↑↓ Navigate  Enter Select  R Refresh  Q Quit",
-        crate::app::Screen::WipeWizard => "↑↓ Method  Space Toggle  Enter Execute  Q Quit",
-        crate::app::Screen::Carver => "Tab Fields  Enter Start  Q Quit",
-        _ => "F1-F5 Navigate  Q Quit",
-    };
+    let (msg, is_err) = if let Some((ref m, ref t, err)) = app.status_msg {
+        if t.elapsed().as_secs() < 6 { (m.as_str(), err) } else { ("", false) }
+    } else { ("", false) };
 
-    let left = if msg.is_empty() {
-        Span::styled(format!(" {} ", keys_hint), Style::default().fg(Theme::MUTED).bg(Theme::SURFACE))
+    let msg_span = if msg.is_empty() {
+        Span::styled(
+            format!(" {} Ready — use F1–F6 to navigate, Q to quit ", spinner),
+            Style::default().fg(Theme::MUTED),
+        )
+    } else if is_err {
+        Span::styled(format!(" ✗ {} ", msg), Style::default().fg(Theme::DANGER).add_modifier(Modifier::BOLD))
     } else {
-        Span::styled(format!(" {} ", msg), Style::default().fg(Theme::SUCCESS).bg(Theme::SURFACE).bold())
+        Span::styled(format!(" ✓ {} ", msg), Style::default().fg(Theme::SUCCESS).add_modifier(Modifier::BOLD))
     };
 
-    let tick_char = ["||", "|\\", "--", "/|"][( app.tick / 4) as usize % 4];
-    let right = Span::styled(format!(" {} NIST SP 800-88 R1 ", tick_char), Style::default().fg(Theme::ACCENT).bg(Theme::SURFACE));
+    let badge = Span::styled(
+        " NIST SP 800-88 R1 │ SecureForge v0.1.0 ",
+        Style::default().fg(Theme::INDIGO),
+    );
 
-    let line = Line::from(vec![left, Span::raw(""), right]);
-    let para = Paragraph::new(line).style(Style::default().bg(Theme::SURFACE));
+    let line = Line::from(vec![msg_span, badge]);
+    let para = Paragraph::new(line).style(Style::default().bg(Theme::BG));
     frame.render_widget(para, area);
 }
 
-fn render_popup(frame: &mut Frame, area: Rect, app: &App) {
-    let popup_area = centered_rect(60, 30, area);
-    use ratatui::widgets::Clear;
+pub fn render_popup(frame: &mut Frame, area: Rect, app: &App) {
+    let popup_area = centered_rect(62, 35, area);
     frame.render_widget(Clear, popup_area);
 
     let (title, body, color) = match &app.popup {
-        crate::app::Popup::Confirm { title, message } => (title.as_str(), message.as_str(), Theme::WARNING),
-        crate::app::Popup::Error(e) => ("Error", e.as_str(), Theme::DANGER),
-        crate::app::Popup::Info(i) => ("Info", i.as_str(), Theme::ACCENT),
-        crate::app::Popup::None => return,
+        Popup::Confirm { title, message } => (title.as_str(), message.as_str(), Theme::WARNING),
+        Popup::Error(e) => ("  Error ", e.as_str(), Theme::DANGER),
+        Popup::Info(i)  => ("  Info  ", i.as_str(), Theme::CYAN),
+        Popup::None     => return,
     };
+
+    let is_confirm = matches!(app.popup, Popup::Confirm { .. });
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
-        .title(Span::styled(format!(" {} ", title), Style::default().fg(color).bold()))
-        .style(Style::default().bg(Theme::SURFACE));
+        .title(Span::styled(format!(" {} ", title), Style::default().fg(color).add_modifier(Modifier::BOLD)))
+        .style(Style::default().bg(Theme::SURFACE2));
 
-    let buttons = "\n\n  [Y] Confirm    [N] Cancel";
-    let text = format!("\n{}\n{}", body, buttons);
-    let para = Paragraph::new(text).block(block).wrap(ratatui::widgets::Wrap { trim: true });
+    let buttons = if is_confirm {
+        "\n\n  [Y] Confirm Erasure     [N] Cancel"
+    } else {
+        "\n\n  [Enter / Esc] Close"
+    };
+
+    let text = format!("\n  {}\n{}", body, buttons);
+    let para = Paragraph::new(text)
+        .block(block)
+        .wrap(Wrap { trim: true })
+        .style(Style::default().fg(Theme::TEXT));
     frame.render_widget(para, popup_area);
 }
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
+    let vert = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage((100 - percent_y) / 2),
@@ -133,5 +168,22 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage(percent_x),
             Constraint::Percentage((100 - percent_x) / 2),
         ])
-        .split(popup_layout[1])[1]
+        .split(vert[1])[1]
+}
+
+pub fn format_bytes(n: u64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB", "PB"];
+    let mut size = n as f64;
+    let mut idx = 0;
+    while size >= 1024.0 && idx < units.len() - 1 { size /= 1024.0; idx += 1; }
+    format!("{:.1} {}", size, units[idx])
+}
+
+pub fn format_dur(secs: u64) -> String {
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    if h > 0 { format!("{}h {}m {}s", h, m, s) }
+    else if m > 0 { format!("{}m {}s", m, s) }
+    else { format!("{}s", s) }
 }
