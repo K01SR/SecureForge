@@ -85,10 +85,12 @@ impl Default for CarverState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
 pub enum Popup {
     None,
     Confirm { title: String, message: String },
     Error(String),
+    /// Reserved for informational popups (e.g. scan results summary)
     Info(String),
 }
 
@@ -104,6 +106,8 @@ pub struct App {
     pub carver: CarverState,
     pub popup: Popup,
     pub log: Vec<String>,
+    /// Tracks last background refresh for future auto-reload support
+    #[allow(dead_code)]
     pub last_refresh: Instant,
     pub tick: u64,
     pub should_quit: bool,

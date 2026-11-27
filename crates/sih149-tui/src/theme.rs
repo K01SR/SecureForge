@@ -1,6 +1,8 @@
 use ratatui::style::Color;
 
 pub struct Theme;
+
+#[allow(dead_code)]
 impl Theme {
     pub const BG: Color = Color::Rgb(10, 12, 18);
     pub const SURFACE: Color = Color::Rgb(18, 20, 30);
