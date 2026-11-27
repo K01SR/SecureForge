@@ -76,6 +76,10 @@ fn main() -> Result<()> {
         } else {
             let mut a = app.lock().unwrap();
             a.tick = a.tick.wrapping_add(1);
+            // Every ~1 second (20 ticks at 50ms), automatically check for hotplugged or removed drives
+            if a.tick % 20 == 0 {
+                a.poll_drive_changes();
+            }
         }
 
         if app.lock().unwrap().should_quit { break; }

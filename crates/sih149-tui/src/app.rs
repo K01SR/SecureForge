@@ -206,8 +206,8 @@ impl App {
         WipeMethod::all().into_iter().nth(self.wipe_method_cursor).unwrap_or(WipeMethod::Dod3)
     }
 
-    pub fn load_drives(&mut self) {
-        self.drives.clear();
+    pub fn query_current_drives() -> Vec<DriveEntry> {
+        let mut list = Vec::new();
         if let Ok(output) = std::process::Command::new("lsblk")
             .args(["-J", "-b", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,MODEL,ROTA"])
             .output()
@@ -227,7 +227,7 @@ impl App {
                             let is_nvme = name.starts_with("nvme");
                             let dtype = if is_nvme { "NVMe" } else if !rota { "SSD" } else { "HDD" }.to_string();
                             let is_system = sih149_core::wiper::file_wiper::is_protected_drive(std::path::Path::new(&path));
-                            self.drives.push(DriveEntry {
+                            list.push(DriveEntry {
                                 name, path, size_bytes: size, model,
                                 is_system, drive_type: dtype,
                                 entropy_samples: Vec::new(),
@@ -238,13 +238,12 @@ impl App {
                 }
             }
         }
-        // Fallback
-        if self.drives.is_empty() {
+        if list.is_empty() {
             for prefix in &["sda", "sdb", "sdc", "nvme0n1", "vda"] {
                 let path = format!("/dev/{}", prefix);
                 if std::path::Path::new(&path).exists() {
                     let is_system = sih149_core::wiper::file_wiper::is_protected_drive(std::path::Path::new(&path));
-                    self.drives.push(DriveEntry {
+                    list.push(DriveEntry {
                         name: prefix.to_string(), path,
                         size_bytes: 0, model: "Unknown".to_string(),
                         is_system, drive_type: "Disk".to_string(),
@@ -254,7 +253,49 @@ impl App {
                 }
             }
         }
+        list
+    }
+
+    pub fn load_drives(&mut self) {
+        self.drives = Self::query_current_drives();
         self.push_log_level(LogLevel::Success, format!("Detected {} drive(s)", self.drives.len()));
+    }
+
+    /// Real-time polling check for hotplug insertion or removal of drives
+    pub fn poll_drive_changes(&mut self) {
+        let current = Self::query_current_drives();
+
+        // 1. Check for removed drives
+        let removed: Vec<String> = self.drives
+            .iter()
+            .filter(|d| !current.iter().any(|c| c.name == d.name))
+            .map(|d| d.name.clone())
+            .collect();
+
+        // 2. Check for added drives
+        let added: Vec<DriveEntry> = current
+            .into_iter()
+            .filter(|c| !self.drives.iter().any(|d| d.name == c.name))
+            .collect();
+
+        for r_name in removed {
+            self.push_log_level(LogLevel::Warning, format!("⚡ Drive DISCONNECTED: /dev/{}", r_name));
+            self.set_status(format!("Drive unplugged: /dev/{}", r_name));
+            self.drives.retain(|d| d.name != r_name);
+            if self.drive_cursor >= self.drives.len() && !self.drives.is_empty() {
+                self.drive_cursor = self.drives.len() - 1;
+            }
+            if self.entropy_drive_cursor >= self.drives.len() && !self.drives.is_empty() {
+                self.entropy_drive_cursor = self.drives.len() - 1;
+            }
+        }
+
+        for new_drive in added {
+            self.push_log_level(LogLevel::Success, format!("⚡ Drive CONNECTED: /dev/{} ({}, {})", 
+                new_drive.name, new_drive.model, new_drive.drive_type));
+            self.set_status(format!("New drive detected: /dev/{}", new_drive.name));
+            self.drives.push(new_drive);
+        }
     }
 
     /// Real Shannon entropy sampler — reads 64KB chunks from device
