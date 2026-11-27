@@ -36,11 +36,48 @@ pub struct HpaInfo {
     pub dco_enabled: bool,
 }
 
-fn run_command(cmd: &str, args: &[&str]) -> Result<(bool, String), CoreError> {
+/// Validates that a device path is a safe block-device target for
+/// firmware-level commands. Only accepts canonical absolute paths under
+/// /dev with no single-dot/double-dot traversal, no shell metacharacters,
+/// and requires the target to actually exist as a block device.
+fn valid_block_device(device: &Path) -> bool {
+    let s = device.to_string_lossy();
+    // Must be an absolute /dev path, not a relative/arbitrary path.
+    if !s.starts_with("/dev/") {
+        return false;
+    }
+    // Refuse traversal and shell-unsafe characters outright.
+    if s.contains("..") || s.contains('\0') {
+        return false;
+    }
+    if s.chars().any(|c| matches!(c, ' ' | ';' | '&' | '|' | '`' | '$' | '(' | ')' | '<' | '>' | '\'' | '"' | '\\')) {
+        return false;
+    }
+    // Must actually be a block device node (not a regular file, not a directory).
+    use std::os::unix::fs::FileTypeExt;
+    match std::fs::symlink_metadata(device) {
+        Ok(md) => md.file_type().is_block_device(),
+        Err(_) => false,
+    }
+}
+
+fn run_command(cmd: &str, device: &Path, args: &[&str]) -> Result<(bool, String), CoreError> {
+    if !valid_block_device(device) {
+        return Err(CoreError::Wiper(format!(
+            "Refusing to run '{}' on unsafe target: {} (must be a valid /dev block device path)",
+            cmd,
+            device.display()
+        )));
+    }
+    let device_str = device.to_string_lossy();
+    let mut full_args: Vec<&str> = Vec::with_capacity(args.len() + 1);
+    full_args.extend_from_slice(args);
+    full_args.push(&device_str);
+
     let output = Command::new(cmd)
-        .args(args)
+        .args(&full_args)
         .output()
-        .map_err(|e| CoreError::Wiper(format!("Failed to run {} {:?}: {} (is {} installed and are you running as root?)", cmd, args, e, cmd)))?;
+        .map_err(|e| CoreError::Wiper(format!("Failed to run {} {:?}: {} (is {} installed and are you running as root?)", cmd, full_args, e, cmd)))?;
 
     let combined = format!(
         "{}{}",
@@ -55,8 +92,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(bool, String), CoreError> {
 /// output — brittle against nvme-cli version differences; treat a `false`
 /// result conservatively (may be a parse miss, not definitive absence).
 pub fn detect_nvme_capabilities(device: &Path) -> Result<NvmeCapabilities, CoreError> {
-    let device_str = device.to_string_lossy();
-    let (ok, output) = run_command("nvme", &["id-ctrl", &device_str, "-H"])?;
+    let (ok, output) = run_command("nvme", device, &["id-ctrl", "-H"])?;
     if !ok {
         return Err(CoreError::Wiper(format!("nvme id-ctrl failed: {}", output)));
     }
@@ -71,9 +107,8 @@ pub fn detect_nvme_capabilities(device: &Path) -> Result<NvmeCapabilities, CoreE
 /// overwriting every block, but only if the drive actually implements
 /// full-disk encryption at rest (verify via detect_nvme_capabilities first).
 pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
-    let device_str = device.to_string_lossy();
     let started = Instant::now();
-    let (success, output) = run_command("nvme", &["sanitize", &device_str, "--sanact=2"])?;
+    let (success, output) = run_command("nvme", device, &["sanitize", "--sanact=2"])?;
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::NvmeCryptoErase,
         success,
@@ -86,9 +121,8 @@ pub fn nvme_crypto_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError
 /// block at the flash-translation-layer level. Slower than crypto erase
 /// but doesn't depend on the drive's encryption implementation.
 pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError> {
-    let device_str = device.to_string_lossy();
     let started = Instant::now();
-    let (success, output) = run_command("nvme", &["sanitize", &device_str, "--sanact=1"])?;
+    let (success, output) = run_command("nvme", device, &["sanitize", "--sanact=1"])?;
     Ok(FirmwareEraseResult {
         method: FirmwareMethod::NvmeBlockErase,
         success,
@@ -102,8 +136,7 @@ pub fn nvme_block_erase(device: &Path) -> Result<FirmwareEraseResult, CoreError>
 /// blocks secure-erase commands until the drive is power-cycled (not just
 /// rebooted) with no intervening freeze command from the OS.
 pub fn ata_detect_frozen(device: &Path) -> Result<bool, CoreError> {
-    let device_str = device.to_string_lossy();
-    let (ok, output) = run_command("hdparm", &["-I", &device_str])?;
+    let (ok, output) = run_command("hdparm", device, &["-I"])?;
     if !ok {
         return Err(CoreError::Wiper(format!("hdparm -I failed: {}", output)));
     }
@@ -114,11 +147,10 @@ pub fn ata_detect_frozen(device: &Path) -> Result<bool, CoreError> {
 /// temporary security password first, per the ATA spec — hdparm handles
 /// both steps here as two calls.
 pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
-    let device_str = device.to_string_lossy();
     let started = Instant::now();
 
-    let (set_ok, set_out) = run_command("hdparm", &[
-        "--user-master", "u", "--security-set-pass", password, &device_str
+    let (set_ok, set_out) = run_command("hdparm", device, &[
+        "--user-master", "u", "--security-set-pass", password
     ])?;
     if !set_ok {
         return Ok(FirmwareEraseResult {
@@ -129,8 +161,8 @@ pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseRe
         });
     }
 
-    let (erase_ok, erase_out) = run_command("hdparm", &[
-        "--user-master", "u", "--security-erase", password, &device_str
+    let (erase_ok, erase_out) = run_command("hdparm", device, &[
+        "--user-master", "u", "--security-erase", password
     ])?;
 
     Ok(FirmwareEraseResult {
@@ -146,11 +178,10 @@ pub fn ata_secure_erase(device: &Path, password: &str) -> Result<FirmwareEraseRe
 /// plain Secure Erase can miss. Not all drives support the enhanced mode;
 /// check via `hdparm -I` for "supported: enhanced erase" before calling.
 pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareEraseResult, CoreError> {
-    let device_str = device.to_string_lossy();
     let started = Instant::now();
 
-    let (set_ok, set_out) = run_command("hdparm", &[
-        "--user-master", "u", "--security-set-pass", password, &device_str
+    let (set_ok, set_out) = run_command("hdparm", device, &[
+        "--user-master", "u", "--security-set-pass", password
     ])?;
     if !set_ok {
         return Ok(FirmwareEraseResult {
@@ -161,8 +192,8 @@ pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareErase
         });
     }
 
-    let (erase_ok, erase_out) = run_command("hdparm", &[
-        "--user-master", "u", "--security-erase-enhanced", password, &device_str
+    let (erase_ok, erase_out) = run_command("hdparm", device, &[
+        "--user-master", "u", "--security-erase-enhanced", password
     ])?;
 
     Ok(FirmwareEraseResult {
@@ -178,12 +209,10 @@ pub fn ata_enhanced_erase(device: &Path, password: &str) -> Result<FirmwareErase
 /// reach. Parsing is heuristic (hdparm's text output isn't a stable API);
 /// treat this as advisory, not a compliance guarantee.
 pub fn detect_hpa_dco(device: &Path) -> Result<HpaInfo, CoreError> {
-    let device_str = device.to_string_lossy();
-
-    let (n_ok, n_out) = run_command("hdparm", &["-N", &device_str])?;
+    let (n_ok, n_out) = run_command("hdparm", device, &["-N"])?;
     let hpa_enabled = n_ok && n_out.contains("HPA is enabled");
 
-    let (dco_ok, dco_out) = run_command("hdparm", &["--dco-identify", &device_str])?;
+    let (dco_ok, dco_out) = run_command("hdparm", device, &["--dco-identify"])?;
     let dco_enabled = dco_ok && !dco_out.to_lowercase().contains("no dco");
 
     Ok(HpaInfo { hpa_enabled, dco_enabled })
