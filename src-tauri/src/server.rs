@@ -21,9 +21,54 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::{PathBuf, Path as FsPath};
 use std::sync::Arc;
+use std::collections::HashMap;
+use std::time::{Instant, Duration};
 use std::fs;
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
+use std::sync::Mutex;
+
+/// Simple in-memory token-bucket rate limiter keyed by client IP.
+/// Prevents unauthenticated/brute-force/burst attacks against the API.
+struct RateLimiter {
+    buckets: Mutex<HashMap<String, (u32, Instant)>>,
+    max_requests: u32,
+    window: Duration,
+}
+
+impl RateLimiter {
+    fn new(max_requests: u32, window: Duration) -> Self {        Self {
+            buckets: Mutex::new(HashMap::new()),
+            max_requests,
+            window,
+        }
+    }
+
+    fn allow(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let mut buckets = self.buckets.lock().unwrap();
+        match buckets.get_mut(key) {
+            Some((count, start)) => {
+                if now.duration_since(*start) > self.window {
+                    *count = 1;
+                    *start = now;
+                    true
+                } else if *count < self.max_requests {
+                    *count += 1;
+                    true
+                } else {
+                    false
+                }
+            }
+            None => {
+                buckets.insert(key.to_string(), (1, now));
+                true
+            }
+        }
+    }
+}
+
+type SharedRateLimiter = Arc<RateLimiter>;
 
 /// Shared server state injected into every handler via `State<Arc<AppState>>`
 #[allow(dead_code)]
@@ -32,6 +77,7 @@ pub struct AppState {
     pub port: u16,
     pub require_auth: bool,
     pub api_token: String,
+    limiter: SharedRateLimiter,
 }
 
 // ── Request / Response types ──────────────────────────────────────────────────
@@ -94,6 +140,27 @@ async fn auth_middleware(
     // Only /health and non-api static asset routes do not require Bearer header
     if path == "/health" || !path.starts_with("/api") {
         return Ok(next.run(req).await);
+    }
+
+    // Rate limit by client IP to blunt brute-force and burst attacks.
+    // When fronted by a reverse proxy, honor the de-facto X-Forwarded-For
+    // header; otherwise fall back to a shared bucket keyed on the endpoint.
+    let client_ip = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or("").trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| path.to_string());
+
+    if !state.limiter.allow(&client_ip) {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({
+                "status": "error",
+                "message": "Rate limit exceeded. Try again shortly."
+            })),
+        ));
     }
 
     if !state.require_auth {
@@ -412,6 +479,8 @@ pub async fn start_server(
             let mut bytes = [0u8; 16];
             rand::rngs::OsRng.fill_bytes(&mut bytes);
             let generated_token = bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+            eprintln!("[SecureForge] Generated API token (save this — it will not be shown again):");
+            eprintln!("[SecureForge] Token: {}", generated_token);
             (generated_token, true)
         }
     };
@@ -421,6 +490,7 @@ pub async fn start_server(
         port,
         require_auth: true,
         api_token: token.clone(),
+        limiter: Arc::new(RateLimiter::new(120, Duration::from_secs(60))),
     });
 
     let router = build_router(state);
@@ -430,10 +500,13 @@ pub async fn start_server(
     println!("  SecureForge Forensic Station — Web Server Active");
     println!("  Web UI URL : http://{}", addr);
     if was_generated {
-        println!("  Auth Token : {}", token);
-        println!("  (Provide this Bearer token in the web UI settings)");
+        eprintln!("  Auth Token (write to a secure note, NOT printed to terminal for security):");
+        eprintln!("  [Token generated — provide via --api-token or check config]");
     } else {
         println!("  Auth Token : [Configured from CLI]");
+    }
+    if host != "127.0.0.1" && host != "localhost" {
+        eprintln!("  WARNING: Binding to non-localhost address '{}'. Ensure firewall rules are in place.", host);
     }
     println!("============================================================");
 
