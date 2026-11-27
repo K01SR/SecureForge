@@ -14,6 +14,9 @@ mod theme;
 mod ui;
 mod worker;
 
+#[cfg(test)]
+mod tests;
+
 fn main() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
