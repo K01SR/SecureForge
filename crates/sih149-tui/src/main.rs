@@ -55,7 +55,7 @@ fn main() -> Result<()> {
                 }
                 let needs_wipe = {
                     let mut a = app.lock().unwrap();
-                    handle_key(&mut a, key.code, key.modifiers)
+                    handle_key(&mut a, key.code, key.modifiers, Arc::clone(&app))
                 };
                 if let Some((path, method, verify)) = needs_wipe {
                     {
@@ -92,7 +92,7 @@ fn main() -> Result<()> {
 }
 
 /// Returns Some((path, method, verify)) when a wipe should be started in a background thread.
-fn handle_key(app: &mut app::App, code: KeyCode, modifiers: KeyModifiers) -> Option<(String, app::WipeMethod, bool)> {
+fn handle_key(app: &mut app::App, code: KeyCode, modifiers: KeyModifiers, app_arc: Arc<Mutex<app::App>>) -> Option<(String, app::WipeMethod, bool)> {
     // Global: quit
     if matches!(code, KeyCode::Char('q') | KeyCode::Char('Q'))
         || (code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL))
@@ -154,8 +154,8 @@ fn handle_key(app: &mut app::App, code: KeyCode, modifiers: KeyModifiers) -> Opt
     // Screen-specific handlers
     match app.screen.clone() {
         app::Screen::Dashboard    => { /* no special keys */ }
-        app::Screen::DriveManager => handle_drives(app, code),
-        app::Screen::Entropy      => handle_entropy(app, code),
+        app::Screen::DriveManager => handle_drives(app, code, app_arc),
+        app::Screen::Entropy      => handle_entropy(app, code, app_arc),
         app::Screen::WipeWizard   => handle_wipe(app, code),
         app::Screen::Carver       => handle_carver(app, code),
         app::Screen::Help         => {}
@@ -164,7 +164,7 @@ fn handle_key(app: &mut app::App, code: KeyCode, modifiers: KeyModifiers) -> Opt
     None
 }
 
-fn handle_drives(app: &mut app::App, code: KeyCode) {
+fn handle_drives(app: &mut app::App, code: KeyCode, app_arc: Arc<Mutex<app::App>>) {
     match code {
         KeyCode::Up => {
             if app.drive_cursor > 0 { app.drive_cursor -= 1; }
@@ -179,10 +179,9 @@ fn handle_drives(app: &mut app::App, code: KeyCode) {
         KeyCode::Char('e') | KeyCode::Char('E') => {
             app.entropy_drive_cursor = app.drive_cursor;
             app.navigate(app::Screen::Entropy);
-            // Immediately trigger entropy load
             let idx = app.entropy_drive_cursor;
-            app.sample_drive_entropy(idx, 256);
-            app.set_status(format!("Entropy analysis complete for /dev/{}", app.drives.get(idx).map(|d| d.name.as_str()).unwrap_or("?")));
+            app.set_status("Analyzing entropy in background…");
+            worker::start_entropy_scan(app_arc, idx, 256);
         }
         KeyCode::Enter => {
             if !app.drives.is_empty() {
@@ -197,7 +196,7 @@ fn handle_drives(app: &mut app::App, code: KeyCode) {
     }
 }
 
-fn handle_entropy(app: &mut app::App, code: KeyCode) {
+fn handle_entropy(app: &mut app::App, code: KeyCode, app_arc: Arc<Mutex<app::App>>) {
     match code {
         KeyCode::Up => {
             if app.entropy_drive_cursor > 0 { app.entropy_drive_cursor -= 1; }
@@ -208,15 +207,8 @@ fn handle_entropy(app: &mut app::App, code: KeyCode) {
         KeyCode::Char('e') | KeyCode::Char('E') | KeyCode::Enter => {
             let idx = app.entropy_drive_cursor;
             if idx < app.drives.len() {
-                app.set_status("Analyzing entropy…");
-                app.sample_drive_entropy(idx, 256);
-                let name = app.drives[idx].name.clone();
-                let avg = if !app.drives[idx].entropy_samples.is_empty() {
-                    let s = &app.drives[idx].entropy_samples;
-                    s.iter().sum::<f64>() / s.len() as f64
-                } else { 0.0 };
-                app.push_log_level(app::LogLevel::Success, format!("Entropy /dev/{}: {:.3} bits/byte avg", name, avg));
-                app.set_status(format!("Entropy loaded — /dev/{}: {:.3} bits/byte", name, avg));
+                app.set_status("Analyzing entropy in background…");
+                worker::start_entropy_scan(app_arc, idx, 256);
             }
         }
         _ => {}
