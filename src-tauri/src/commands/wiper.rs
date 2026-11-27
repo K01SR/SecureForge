@@ -45,6 +45,18 @@ lazy_static::lazy_static! {
 
 #[tauri::command]
 pub async fn start_wipe(config: WipeConfig, app_handle: AppHandle) -> Result<WipeResult, String> {
+    // IPC input validation: device path must be present and the method
+    // must be one of the known values before we spawn any work.
+    if config.device_path.trim().is_empty() {
+        return Err("device_path must not be empty".to_string());
+    }
+    if config.device_path.len() > 4096 {
+        return Err("device_path too long".to_string());
+    }
+    if !matches!(config.method.as_str(), "zero" | "dod3" | "dod" | "random" | "dod7" | "gutmann") {
+        return Err(format!("Unknown wipe method: {}", config.method));
+    }
+
     WIPE_CANCEL_FLAG.store(false, Ordering::SeqCst);
 
     let path = std::path::Path::new(&config.device_path);

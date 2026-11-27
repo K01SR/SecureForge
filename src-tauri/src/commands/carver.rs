@@ -118,6 +118,24 @@ fn load_signature_db(signatures_dir: &Path) -> Result<SignatureDatabase, String>
 
 #[tauri::command]
 pub async fn start_scan(config: ScanConfig, app_handle: AppHandle) -> Result<ScanResult, String> {
+    // IPC input validation: refuse empty paths, cap file-types count, and
+    // keep min_confidence in a sane range to prevent excessive resource use.
+    if config.source_path.trim().is_empty() {
+        return Err("source_path must not be empty".to_string());
+    }
+    if config.output_dir.trim().is_empty() {
+        return Err("output_dir must not be empty".to_string());
+    }
+    if config.file_types.len() > 32 {
+        return Err("file_types list too large (max 32)".to_string());
+    }
+    if config.min_confidence > 100 {
+        return Err("min_confidence must be between 0 and 100".to_string());
+    }
+    if config.source_path.len() > 4096 || config.output_dir.len() > 4096 {
+        return Err("path arguments too long".to_string());
+    }
+
     SCAN_CANCEL_FLAG.store(false, Ordering::SeqCst);
 
     let app_handle_bg = app_handle.clone();

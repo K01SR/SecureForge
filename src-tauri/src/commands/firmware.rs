@@ -126,20 +126,20 @@ pub fn detect_firmware_capabilities(device_path: String) -> Result<FirmwareCapab
 
 #[tauri::command]
 pub async fn start_firmware_erase(config: FirmwareEraseConfig) -> Result<FirmwareEraseResult, String> {
-    let device = Path::new(&config.device_path);
-    if sih149_core::wiper::file_wiper::is_protected_drive(device) {
-        let authorized = match &config.expert_passphrase {
-            Some(pass) => crate::commands::auth::verify_expert_passphrase(pass.clone())
-                .await
-                .unwrap_or(false),
-            None => false,
-        };
-        if !authorized {
-            return Err(format!(
-                "Safety guard: Refusing to firmware-erase system/boot drive {} — expert passphrase required and did not verify.",
-                config.device_path
-            ));
-        }
+    // Firmware-level erases are irreversibly destructive at the hardware
+    // controller level. Require expert passphrase authorization for ALL
+    // firmware erases (not just system drives) as a defense-in-depth guard.
+    let authorized = match &config.expert_passphrase {
+        Some(pass) => crate::commands::auth::verify_expert_passphrase(pass.clone())
+            .await
+            .unwrap_or(false),
+        None => false,
+    };
+    if !authorized {
+        return Err(format!(
+            "Safety guard: Refusing firmware-level erase on {} — expert passphrase required and did not verify.",
+            config.device_path
+        ));
     }
 
     tokio::task::spawn_blocking(move || -> Result<FirmwareEraseResult, String> {
