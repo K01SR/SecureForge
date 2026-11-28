@@ -30,7 +30,7 @@ def detect_mime(path):
     if MAGIC_AVAILABLE:
         try:
             return magic.from_file(str(path), mime=True)
-        except:
+        except Exception:
             pass
     
     ext = os.path.splitext(path)[1].lower()
@@ -59,7 +59,7 @@ def extract_exif(path):
         with open(path, 'rb') as f:
             tags = exifread.process_file(f, details=False)
             return {k: str(v) for k, v in tags.items() if k in ['EXIF DateTimeOriginal', 'Image Make', 'Image Model']}
-    except:
+    except Exception:
         return {}
 def compute_dhash(path):
     if not PIL_AVAILABLE:
@@ -84,7 +84,7 @@ def compute_dhash(path):
                     hex_string.append(hex(decimal_value)[2:].rjust(2, '0'))
                     decimal_value = 0
             return ''.join(hex_string)
-    except:
+    except Exception:
         return None
 def compute_sha256(path):
     h = hashlib.sha256()
@@ -93,7 +93,7 @@ def compute_sha256(path):
             while chunk := f.read(8192):
                 h.update(chunk)
         return h.hexdigest()
-    except:
+    except Exception:
         return None
 def classify_file(path):
     mime = detect_mime(path)
@@ -117,6 +117,13 @@ def main():
             for file in files:
                 filepath = os.path.join(root, file)
                 try:
+                    # Refuse to follow symlinks during classification. A
+                    # malicious symlink inside the scan dir could otherwise
+                    # point at an arbitrary file outside the scope (e.g. a
+                    # sensitive system file) and get read/exfiltrated into
+                    # the classification output.
+                    if os.path.islink(filepath):
+                        continue
                     size = os.path.getsize(filepath)
                     if size < args.min_size: continue
                     record = classify_file(filepath)

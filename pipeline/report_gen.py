@@ -33,6 +33,19 @@ def load_audit_data(path):
         print(f"Error loading audit data: {e}", file=sys.stderr)
         sys.exit(1)
 
+# Allowlist of template variables consumed by the bundled report templates.
+# Any other (attacker-influenced) key present in the audit JSON is stripped
+# before rendering so it cannot pollute the Jinja2 context or override a
+# template global / reserved name.
+ALLOWED_CONTEXT_KEYS = {
+    'case_id', 'date', 'investigator', 'method', 'passes',
+    'device_model', 'device_serial', 'device_capacity', 'device_interface',
+    'entropy', 'device', 'files',
+}
+
+def sanitize_context(data):
+    return {k: v for k, v in data.items() if k in ALLOWED_CONTEXT_KEYS}
+
 def render_html(data, template_name, template_dir):
     try:
         env = Environment(
@@ -47,7 +60,10 @@ def render_html(data, template_name, template_dir):
         template_file = f"{template_name}_certificate.html"
     try:
         template = env.get_template(template_file)
-        return template.render(**data)
+        # Only spread the allowlisted subset of keys into the template context
+        # so that extra keys from the audit JSON cannot pollute the context or
+        # override Jinja2 globals.
+        return template.render(**sanitize_context(data))
     except Exception as e:
         print(f"Error rendering template: {e}", file=sys.stderr)
         sys.exit(1)
