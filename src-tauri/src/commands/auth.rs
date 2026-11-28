@@ -34,7 +34,17 @@ pub async fn setup_expert_passphrase(passphrase: String) -> Result<(), String> {
     let toml = toml::to_string(&config).map_err(|e| e.to_string())?;
     
     let path = get_config_path()?;
-    fs::write(path, toml).map_err(|e| e.to_string())?;
+    fs::write(&path, toml).map_err(|e| e.to_string())?;
+
+    // Restrict config file permissions to owner-only (rw-------) so the
+    // Argon2 hash and any future secrets aren't world-readable.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = fs::metadata(&path).map_err(|e| e.to_string())?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(perms.permissions().mode() & 0o600))
+            .map_err(|e| e.to_string())?;
+    }
     
     Ok(())
 }

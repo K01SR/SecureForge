@@ -82,22 +82,32 @@ pub fn export_report(case_id: String, format: String, output_path: String) -> Re
         _ => "erasure",
     };
 
-    let input_json = format!("/tmp/{}_audit.json", case_id);
-    if !std::path::Path::new(&input_json).exists() {
-        let dummy = serde_json::json!({
-            "case_id": case_id,
-            "device": { "path": "/dev/sdb", "model": "Evidence Block Device", "serial": "SF-001" },
-            "method": "dod3",
-            "status": "completed",
-            "created_at": "2026-09-03T23:00:00Z"
-        });
-        let _ = std::fs::write(&input_json, dummy.to_string());
-    }
+    // Write audit JSON to a secure, random temp file instead of a
+    // predictable /tmp/<case_id>_audit.json path (prevents symlink attacks
+    // and info leakage of per-case data in a shared world-readable dir).
+    let tmp_dir = std::env::temp_dir();
+    let input_json = tmp_dir.join(format!(
+        "sf_{}_{}_audit.json",
+        case_id,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    ));
+
+    let dummy = serde_json::json!({
+        "case_id": case_id,
+        "device": { "path": "/dev/sdb", "model": "Evidence Block Device", "serial": "SF-001" },
+        "method": "dod3",
+        "status": "completed",
+        "created_at": "2026-09-03T23:00:00Z"
+    });
+    std::fs::write(&input_json, dummy.to_string()).map_err(|e| e.to_string())?;
 
     let output = Command::new("python3")
         .args([
             "pipeline/report_gen.py",
-            "--input", &input_json,
+            "--input", input_json.to_str().unwrap_or_default(),
             "--template", template,
             "--output", &output_path,
             "--case-id", &case_id,
