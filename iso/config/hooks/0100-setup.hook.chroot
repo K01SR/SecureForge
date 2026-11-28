@@ -28,7 +28,39 @@ EOF
 chmod +x /usr/local/bin/secureforge-gui
 
 # Set up PAM/sudo rules
-echo "secureforge ALL=(ALL) NOPASSWD: /usr/sbin/hdparm, /usr/sbin/nvme" > /etc/sudoers.d/secureforge
+# Grant passwordless sudo ONLY to a tightly-scoped wrapper script that
+# internally validates arguments, rather than to hdparm/nvme directly.
+# Giving passwordless root to `hdparm`/`nvme` itself would let anything the
+# `secureforge` account runs (e.g. a compromised plugin) write raw sectors to
+# arbitrary disks. The wrapper below only allows a fixed set of forensic-safe
+# operations and rejects everything else.
+cat << 'WRAPEOF' > /usr/local/bin/secureforge-smartctl
+#!/bin/bash
+# Minimal whitelisted wrapper for forensic drive operations.
+# Successful use proves an explicit, reviewed call; anything else is denied.
+set -euo pipefail
+cmd="${1:-}"
+case "$cmd" in
+    read-smart)
+        shift
+        device="${1:-}"
+        [[ "$device" == /dev/* && "$device" != /dev/null ]] || { echo "denied: bad device" >&2; exit 1; }
+        exec /usr/sbin/smartctl -H -A "$device"
+        ;;
+    secure-erase-status)
+        shift
+        device="${1:-}"
+        [[ "$device" == /dev/* && "$device" != /dev/null ]] || { echo "denied: bad device" >&2; exit 1; }
+        exec /usr/sbin/hdparm -I "$device" 2>/dev/null || exit 1
+        ;;
+    *)
+        echo "denied: unknown operation '$cmd'" >&2
+        exit 1
+        ;;
+esac
+WRAPEOF
+chmod 755 /usr/local/bin/secureforge-smartctl
+echo "secureforge ALL=(root) NOPASSWD: /usr/local/bin/secureforge-smartctl" > /etc/sudoers.d/secureforge
 
 # Configure NetworkManager
 systemctl disable NetworkManager || true
