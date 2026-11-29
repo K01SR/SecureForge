@@ -1,6 +1,7 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { Key, ShieldAlert, CheckCircle2, ArrowRight } from 'lucide-react';
 import { saveToken, getSavedToken } from '../lib/api';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   isOpen: boolean;
@@ -10,6 +11,11 @@ interface Props {
 export function TokenModal({ isOpen, onSuccess }: Props) {
   const [token, setToken] = useState(getSavedToken());
   const [error, setError] = useState('');
+  const trapRef = useFocusTrap<HTMLDivElement>();
+
+  useEffect(() => {
+    setToken(getSavedToken());
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -26,7 +32,7 @@ export function TokenModal({ isOpen, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="glass-panel w-full max-w-lg rounded-2xl border border-cyber-500/40 glow-border p-6 shadow-2xl relative space-y-4">
+      <div ref={trapRef} className="glass-panel w-full max-w-lg rounded-2xl border border-cyber-500/40 glow-border p-6 shadow-2xl relative space-y-4">
         <div className="flex items-center gap-3.5">
           <div className="p-3 rounded-xl bg-cyber-950/80 border border-cyber-500/40 text-cyber-400">
             <Key className="w-6 h-6 animate-pulse" />

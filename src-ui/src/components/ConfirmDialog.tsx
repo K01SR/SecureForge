@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export function ConfirmDialog({
   onCancel,
 }: Props) {
   const [input, setInput] = useState('');
+  const trapRef = useFocusTrap<HTMLDivElement>(onCancel);
 
   useEffect(() => {
     if (isOpen) {
@@ -38,7 +40,7 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="glass-panel w-full max-w-lg rounded-2xl border border-rose-500/30 glow-border-danger p-6 shadow-2xl relative">
+      <div ref={trapRef} className="glass-panel w-full max-w-lg rounded-2xl border border-rose-500/30 glow-border-danger p-6 shadow-2xl relative">
         {/* Close Button */}
         <button
           onClick={onCancel}

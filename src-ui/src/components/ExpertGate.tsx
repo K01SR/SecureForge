@@ -18,6 +18,13 @@ export function ExpertGate({ onSuccess, onCancel }: Props) {
     checkConfigured().then(setIsConfigured);
   }, [checkConfigured]);
 
+  useEffect(() => {
+    if (isExpert) {
+      const timer = setTimeout(() => onSuccess(pass), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isExpert, pass, onSuccess]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!pass) return;
@@ -33,7 +40,6 @@ export function ExpertGate({ onSuccess, onCancel }: Props) {
   };
 
   if (isExpert) {
-    setTimeout(() => onSuccess(pass), 0);
     return null;
   }
 

@@ -68,9 +68,9 @@ export function Plugins() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plugins.map((p, idx) => (
+          {plugins.map((p) => (
             <div
-              key={idx}
+              key={p.name}
               className="glass-panel p-5 rounded-2xl border border-white/10 hover:border-cyber-500/40 transition-all space-y-3"
             >
               <div className="flex items-start justify-between">

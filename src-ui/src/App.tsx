@@ -30,6 +30,7 @@ export default function App() {
   const { isExpert } = useExpertMode();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [showTokenModal, setShowTokenModal] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Only prompt for token in web browser mode when no token is saved
@@ -50,7 +51,11 @@ export default function App() {
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setCurrentTime(now.toTimeString().split(' ')[0] + ' UTC');
+      // toTimeString() returns LOCAL time; using toUTCString() components
+      // gives true UTC so the " UTC" suffix is accurate.
+      const utc = now.toUTCString().split(' ')[4] || '';
+      const trimmed = utc && utc.includes(':') ? utc.slice(0, -3) : '';
+      setCurrentTime(trimmed ? trimmed + ' UTC' : new Date().toTimeString().split(' ')[0]);
     };
     updateTime();
     const timer = setInterval(updateTime, 1000);
@@ -104,8 +109,16 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-surface-950 text-slate-100 overflow-hidden font-sans selection:bg-cyber-500/30">
-      {/* Cyber Sidebar */}
-      <aside className="w-64 bg-surface-900/95 border-r border-white/5 flex flex-col justify-between shrink-0 relative z-20">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 z-10 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Cyber Sidebar — collapsible on small screens */}
+      <aside className={`w-64 bg-surface-900/95 border-r border-white/5 flex flex-col justify-between shrink-0 relative z-20 transition-transform duration-200 fixed lg:static inset-y-0 left-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div>
           {/* Logo & Brand */}
           <div className="p-5 border-b border-white/5 flex items-center gap-3">
@@ -134,7 +147,10 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setPage(item.id)}
+                  onClick={() => {
+                    setPage(item.id);
+                    setSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
                     isActive
                       ? `${item.activeBg} font-bold shadow-md shadow-black/40`
@@ -176,8 +192,17 @@ export default function App() {
       {/* Main App Container */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Top Operational Header */}
-        <header className="h-14 bg-surface-900/80 backdrop-blur-md border-b border-white/5 px-6 flex items-center justify-between shrink-0 z-10">
+        <header className="h-14 bg-surface-900/80 backdrop-blur-md border-b border-white/5 px-4 sm:px-6 flex items-center justify-between shrink-0 z-10">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen((o) => !o)}
+              className="lg:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 border border-white/5 transition-colors cursor-pointer"
+              aria-label="Toggle navigation"
+            >
+              <span className="block w-5 h-0.5 bg-current mb-1" />
+              <span className="block w-5 h-0.5 bg-current mb-1" />
+              <span className="block w-5 h-0.5 bg-current" />
+            </button>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
               Module:
             </span>
