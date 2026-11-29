@@ -28,15 +28,21 @@ export function checkIsTauri(): boolean {
 }
 
 export function getSavedToken(): string {
-  if (typeof localStorage !== 'undefined') {
-    return localStorage.getItem('secureforge_api_token') || '';
+  if (typeof sessionStorage !== 'undefined') {
+    return sessionStorage.getItem('secureforge_api_token') || '';
   }
   return '';
 }
 
 export function saveToken(token: string) {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('secureforge_api_token', token.trim());
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem('secureforge_api_token', token.trim());
+  }
+}
+
+export function clearToken() {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('secureforge_api_token');
   }
 }
 
@@ -90,7 +96,7 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   }
 
   // 2. HTTP REST fallback when running in standard browser
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:7878';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://127.0.0.1:7878';
 
   try {
     switch (cmd) {
