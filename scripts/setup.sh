@@ -33,7 +33,11 @@ case "$MODE" in
         ok "CLI built: ./target/release/sih149"
         ;;
     gui)
-        cargo install tauri-cli --version "^2.0" --quiet 2>/dev/null || true
+        # Pin tauri-cli to a specific released version (matching the app's
+        # "tauri" 2.11.5 dependency) for reproducible, audited builds instead
+        # of a loosely-matching "^2.0" range that could pull a future or
+        # unexpected release.
+        cargo install tauri-cli --version "2.11.5" --quiet 2>/dev/null || true
         cd src-ui && npm install --silent && cd ..
         ;;
     server)
