@@ -13,29 +13,44 @@ import {
 export function Reports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseRecord | null>(null);
+  const [casesLoading, setCasesLoading] = useState(true);
+  const [casesError, setCasesError] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState('pdf');
-  const [investigator, setInvestigator] = useState('Forensic Officer K. Singh');
+  const [investigator, setInvestigator] = useState('');
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     ReportsAPI.list()
       .then((data) => {
+        if (cancelled) return;
         setCases(data);
         if (data.length > 0) setSelectedCase(data[0]);
+        setCasesLoading(false);
       })
-      .catch((e) => console.error('Failed to list cases:', e));
+      .catch((e) => {
+        if (cancelled) return;
+        setCasesError('Failed to load cases: ' + (e?.message || e));
+        setCasesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleExport = async () => {
     if (!selectedCase) return;
     setExportStatus('Generating report...');
+    setExportError(null);
     try {
       const outputPath = `./${selectedCase.id}_certificate.${exportFormat}`;
       await ReportsAPI.export(selectedCase.id, exportFormat, outputPath);
       setExportStatus(`Exported successfully to ${outputPath}`);
-    } catch {
-      // Browser fallback simulation
-      setExportStatus(`Generated: ${selectedCase.id}_certificate.${exportFormat}`);
+    } catch (e: any) {
+      // Report the real failure instead of faking success.
+      setExportStatus(null);
+      setExportError(`Export failed: ${e?.message || 'Unknown error'}`);
     }
   };
 
@@ -69,7 +84,15 @@ export function Reports() {
           </div>
 
           <div className="space-y-3">
-            {cases.length === 0 ? (
+            {casesLoading ? (
+              <div className="glass-panel p-8 rounded-xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                <Clock className="w-4 h-4 animate-pulse text-purple-400" /> Loading forensic case records...
+              </div>
+            ) : casesError ? (
+              <div className="glass-panel p-8 rounded-xl text-center text-xs text-rose-400">
+                {casesError}
+              </div>
+            ) : cases.length === 0 ? (
               <div className="glass-panel p-8 rounded-xl text-center text-xs text-slate-500">
                 No forensic cases recorded in the SQLite database yet.
               </div>
@@ -187,6 +210,12 @@ export function Reports() {
               {exportStatus && (
                 <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs font-mono">
                   {exportStatus}
+                </div>
+              )}
+
+              {exportError && (
+                <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs font-mono">
+                  {exportError}
                 </div>
               )}
 

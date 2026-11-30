@@ -26,19 +26,32 @@ export function Dashboard({ onNavigate }: Props) {
   const { drives, loading, error, refresh } = useDrives();
   const [selectedDrive, setSelectedDrive] = useState<DriveInfo | null>(null);
   const [entropyData, setEntropyData] = useState<number[]>([]);
+  const [entropyLoading, setEntropyLoading] = useState(false);
+  const [entropyError, setEntropyError] = useState<string | null>(null);
 
+  // Fetch entropy only once when the selected drive (or the initial default
+  // drive) changes — keyed on the drive path, NOT on the `drives` array
+  // reference, to avoid an infinite refetch loop on every drives update.
+  const entropyTargetPath = selectedDrive?.path || drives[0]?.path || '';
   useEffect(() => {
-    const target = selectedDrive || (drives.length > 0 ? drives[0] : null);
-    if (target) {
-      EntropyAPI.get(target.path, 120)
-        .then((data) => {
-          if (data && data.length > 0) setEntropyData(data);
-        })
-        .catch(() => {
-          // If device read requires root or image path
-        });
-    }
-  }, [selectedDrive, drives]);
+    if (!entropyTargetPath) return;
+    let cancelled = false;
+    setEntropyLoading(true);
+    setEntropyError(null);
+    EntropyAPI.get(entropyTargetPath, 120)
+      .then((data) => {
+        if (!cancelled && data && data.length > 0) setEntropyData(data);
+      })
+      .catch(() => {
+        if (!cancelled) setEntropyError('Entropy telemetry unavailable (root or block-device access required).');
+      })
+      .finally(() => {
+        if (!cancelled) setEntropyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entropyTargetPath]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -161,7 +174,12 @@ export function Dashboard({ onNavigate }: Props) {
             </div>
           )}
 
-          {drives.length === 0 && !loading ? (
+          {loading && drives.length === 0 ? (
+            <div className="glass-panel p-12 rounded-xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <Activity className="w-4 h-4 animate-pulse text-cyber-400" />
+              Scanning storage busses...
+            </div>
+          ) : drives.length === 0 ? (
             <div className="glass-panel p-12 rounded-xl text-center text-slate-500">
               No physical block devices detected.
             </div>
@@ -288,7 +306,19 @@ export function Dashboard({ onNavigate }: Props) {
 
       {/* Real-time Sector Entropy Radar */}
       <div>
-        <EntropyHeatmap data={entropyData} height={44} title="Live Forensic Entropy Telemetry Monitor" />
+        {entropyLoading ? (
+          <div className="glass-panel p-4 rounded-xl text-center text-sm text-slate-500 flex items-center justify-center gap-2">
+            <Activity className="w-4 h-4 animate-pulse text-cyber-500" />
+            Calculating Shannon entropy across the target device...
+          </div>
+        ) : entropyError ? (
+          <div className="glass-panel p-4 rounded-xl text-center text-xs text-rose-400 flex items-center justify-center gap-2">
+            <Activity className="w-4 h-4 text-rose-500" />
+            {entropyError}
+          </div>
+        ) : (
+          <EntropyHeatmap data={entropyData} height={44} title="Live Forensic Entropy Telemetry Monitor" />
+        )}
       </div>
     </div>
   );

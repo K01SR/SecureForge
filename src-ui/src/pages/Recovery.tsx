@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 export function Recovery() {
-  const [sourcePath, setSourcePath] = useState('tests/fixtures/mixed_with_jpeg.dd');
+  const [sourcePath, setSourcePath] = useState('/dev/sdb');
   const [outputDir, setOutputDir] = useState('./recovered');
   const [minConfidence, setMinConfidence] = useState(50);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['jpg', 'png', 'pdf', 'sqlite']);
@@ -21,6 +21,7 @@ export function Recovery() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [selectedFile, setSelectedFile] = useState<CarvedFile | null>(null);
   const [hexDump, setHexDump] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -43,6 +44,7 @@ export function Recovery() {
     setResult(null);
     setSelectedFile(null);
     setHexDump(null);
+    setErrorMessage(null);
 
     try {
       const res = await CarverAPI.start({
@@ -56,7 +58,7 @@ export function Recovery() {
         handleInspectFile(res.files[0]);
       }
     } catch (err: any) {
-      console.error('Scan failed:', err);
+      setErrorMessage(err?.message || err?.toString?.() || 'Scan failed');
     } finally {
       setIsScanning(false);
       setProgress(null);
@@ -138,8 +140,7 @@ export function Recovery() {
 
       {/* Configuration Box */}
       {!isScanning && (
-        <div className="glass-panel p-5 rounded-2xl border border-white/10 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="glass-panel p-5 rounded-2xl border border-white/10 space-y-4">          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">Evidence Source</label>
               <input
@@ -210,6 +211,13 @@ export function Recovery() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Scan Error Banner */}
+      {errorMessage && !isScanning && (
+        <div className="p-4 rounded-xl bg-rose-950/80 border border-rose-800/60 text-rose-300 text-xs font-mono">
+          Scan failed: {errorMessage}
         </div>
       )}
 

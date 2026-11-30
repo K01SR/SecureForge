@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Copy, Check, Terminal } from 'lucide-react';
 
 interface Props {
@@ -10,6 +10,20 @@ interface Props {
 
 export function HexViewer({ hexData, rawBytes, startOffset = 0, title }: Props) {
   const [copied, setCopied] = useState(false);
+  const copyTimeout = useRef<number | undefined>(undefined);
+
+  // Clear any pending "Copied" reset timeout when the component unmounts to
+  // prevent a setState-on-unmounted-component memory/update leak.
+  const clearCopyTimeout = () => {
+    if (copyTimeout.current !== undefined) {
+      window.clearTimeout(copyTimeout.current);
+      copyTimeout.current = undefined;
+    }
+  };
+
+  useEffect(() => {
+    return () => clearCopyTimeout();
+  }, []);
 
   // Parse bytes either from raw Uint8Array or hex string
   let bytes: number[] = [];
@@ -51,7 +65,11 @@ export function HexViewer({ hexData, rawBytes, startOffset = 0, title }: Props) 
       navigator.clipboard.writeText(full);
     }
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    clearCopyTimeout();
+    copyTimeout.current = window.setTimeout(() => {
+      setCopied(false);
+      copyTimeout.current = undefined;
+    }, 2000);
   };
 
   return (
