@@ -1,5 +1,6 @@
 use crate::carver::confidence::{Confidence, ConfidenceScorer};
 use crate::carver::scanner::SectorScanner;
+use crate::carver::signatures::SignatureDatabase;
 use crate::carver::structure::{jpeg, pdf, png, sqlite, zip};
 use crate::disk::DiskSource;
 use crate::error::Result;
@@ -62,8 +63,22 @@ impl CarvingEngine {
                 // Validate structure if supported
                 if hit.offset >= offset && hit.offset < offset + to_read as u64 {
                     let local_offset = (hit.offset - offset) as usize;
-                    let file_data = &buffer[local_offset..std::cmp::min(local_offset + hit.signature.max_size as usize, to_read)];
-                    
+                    let window_end = std::cmp::min(local_offset + hit.signature.max_size as usize, to_read);
+                    let file_data = &buffer[local_offset..window_end];
+
+                    // Reward a matching footer signature when one is declared, so
+                    // header+footer+structure matches can reach High confidence
+                    // instead of being capped at Medium and filtered by stricter
+                    // thresholds (e.g. the 80% default in the GUI).
+                    if let Some(footer_hex) = hit.signature.magic_footer.as_deref() {
+                        if let Ok(footer_bytes) = SignatureDatabase::parse_hex(footer_hex) {
+                            scorer.has_footer = !footer_bytes.is_empty()
+                                && file_data
+                                    .windows(footer_bytes.len())
+                                    .any(|w| w == footer_bytes.as_slice());
+                        }
+                    }
+
                     let built_in_valid = match hit.signature.extension.as_str() {
                         "jpg" | "jpeg" => jpeg::validate_jpeg(file_data).unwrap_or(false),
                         "png"          => png::validate_png(file_data).unwrap_or(false),
