@@ -112,6 +112,29 @@ struct EntropyRequest {
     chunks: Option<usize>,
 }
 
+#[derive(Deserialize)]
+struct HexRequest {
+    file_path: String,
+    offset: u64,
+    length: usize,
+    allowed_root: Option<String>,
+}
+
+// Simple in-memory job store so web-mode `/api/scan` (async) can be polled
+// via `/api/jobs/:id` and return a real `ScanResult` when complete.
+lazy_static::lazy_static! {
+    static ref SCAN_JOBS: Mutex<std::collections::HashMap<String, serde_json::Value>> =
+        Mutex::new(std::collections::HashMap::new());
+}
+
+fn get_scan_job(job_id: &str) -> Option<serde_json::Value> {
+    SCAN_JOBS.lock().unwrap().get(job_id).cloned()
+}
+
+fn set_scan_job(job_id: &str, value: serde_json::Value) {
+    SCAN_JOBS.lock().unwrap().insert(job_id.to_string(), value);
+}
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 /// Constant-time bearer token comparison to prevent timing side-channel attacks.
@@ -265,7 +288,8 @@ async fn post_wipe(
     )
 }
 
-/// POST /api/scan — enqueue a carving scan
+/// POST /api/scan — run a carving scan in the background, store the result,
+/// and return a job id that can be polled via GET /api/jobs/:id
 async fn post_scan(
     State(_state): State<Arc<AppState>>,
     Json(req): Json<ScanRequest>,
@@ -283,12 +307,46 @@ async fn post_scan(
         "Scan job enqueued"
     );
 
+    set_scan_job(&job_id, serde_json::json!({
+        "job_id": job_id,
+        "status": "in_progress",
+        "progress_percent": 0
+    }));
+
+    // Run the same scan engine the Tauri IPC path uses, off the async thread.
+    let job_id_bg = job_id.clone();
+    let config = crate::commands::carver::ScanConfig {
+        source_path: req.source_path,
+        output_dir: req.output_dir,
+        file_types: req.file_types,
+        min_confidence: req.min_confidence,
+    };
+    let source_log = config.source_path.clone();
+    tokio::task::spawn_blocking(move || {
+        let result = crate::commands::carver::run_scan(&config, |_| {});
+        let payload = match result {
+            Ok(scan) => serde_json::json!({
+                "job_id": job_id_bg,
+                "status": "completed",
+                "progress_percent": 100,
+                "result": scan
+            }),
+            Err(e) => serde_json::json!({
+                "job_id": job_id_bg,
+                "status": "failed",
+                "progress_percent": 100,
+                "message": e
+            }),
+        };
+        set_scan_job(&job_id_bg, payload);
+    });
+
     (
         StatusCode::ACCEPTED,
         Json(serde_json::json!({
             "job_id": job_id,
             "status": "queued",
-            "message": format!("Scan of {} enqueued", req.source_path)
+            "message": format!("Scan of {} enqueued", source_log)
         })),
     )
 }
@@ -338,17 +396,45 @@ async fn post_entropy(
     }
 }
 
-/// GET /api/jobs/:id — poll status of a running job
+/// GET /api/jobs/:id — poll a running carve job; returns the completed
+/// ScanResult once `/api/scan`'s background task finishes.
 async fn get_job_status(
     State(_state): State<Arc<AppState>>,
     Path(job_id): Path<String>,
 ) -> impl IntoResponse {
-    Json(serde_json::json!({
-        "job_id": job_id,
-        "status": "in_progress",
-        "progress_percent": 0,
-        "message": "Job status polling not yet connected to backend task store"
-    }))
+    match get_scan_job(&job_id) {
+        Some(job) => (StatusCode::OK, Json(job)),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "job_id": job_id,
+                "status": "unknown"
+            })),
+        ),
+    }
+}
+
+/// POST /api/hex — read a hex preview from an evidence file (mirrors the
+/// Tauri `get_file_hex_preview` command so web mode behaves identically).
+async fn post_hex(
+    State(_state): State<Arc<AppState>>,
+    Json(req): Json<HexRequest>,
+) -> impl IntoResponse {
+    match crate::commands::carver::get_file_hex_preview_str(
+        &req.file_path,
+        req.offset,
+        req.length,
+        req.allowed_root.as_deref(),
+    ) {
+        Ok(hex) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "success", "data": hex })),
+        ),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "status": "error", "message": e })),
+        ),
+    }
 }
 
 /// Locate compiled static frontend directory
@@ -445,6 +531,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/cases", get(get_cases))
         .route("/api/plugins", get(get_plugins))
         .route("/api/entropy", post(post_entropy))
+        .route("/api/hex", post(post_hex))
         .route("/api/jobs/:id", get(get_job_status))
         .layer(from_fn_with_state(state.clone(), auth_middleware))
         .layer(cors)

@@ -114,10 +114,31 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
       }
 
       case 'start_scan': {
-        return await safeFetchJson<T>(`${baseUrl}/api/scan`, {
+        // The web backend routes carving through a job queue, so POST creates
+        // a job and we poll /api/jobs/:id until it completes, then return a
+        // ScanResult-shaped object so the UI works identically in web and
+        // Tauri modes (the Tauri command returns a synchronous ScanResult).
+        const cfg = (args?.config || args || {}) as {
+          source_path?: string;
+          output_dir?: string;
+          file_types?: string[];
+          min_confidence?: number;
+        };
+        const job: any = await safeFetchJson(`${baseUrl}/api/scan`, {
           method: 'POST',
-          body: JSON.stringify(args?.config || args),
+          body: JSON.stringify({
+            source_path: cfg.source_path,
+            output_dir: cfg.output_dir,
+            file_types: cfg.file_types,
+            min_confidence: cfg.min_confidence,
+          }),
         });
+        const jobId = job?.job_id;
+        if (!jobId) {
+          throw new Error(job?.message || 'Scan job was not accepted');
+        }
+        const scanResult = await pollScanJob(jobId);
+        return (scanResult as unknown) as T;
       }
 
       case 'list_cases': {
@@ -131,11 +152,28 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
       }
 
       case 'get_drive_entropy': {
+        // The REST endpoint expects snake_case field names (device_path).
         const json: any = await safeFetchJson(`${baseUrl}/api/entropy`, {
           method: 'POST',
-          body: JSON.stringify(args),
+          body: JSON.stringify({
+            device_path: args?.devicePath,
+            chunks: args?.chunks,
+          }),
         });
         return (json.data || []) as T;
+      }
+
+      case 'get_file_hex_preview': {
+        const json: any = await safeFetchJson(`${baseUrl}/api/hex`, {
+          method: 'POST',
+          body: JSON.stringify({
+            file_path: args?.filePath,
+            offset: args?.offset,
+            length: args?.length,
+            allowed_root: args?.allowedRoot || null,
+          }),
+        });
+        return (json.data || '') as T;
       }
 
       default:
@@ -154,6 +192,22 @@ async function tauriListen<T>(event: string, handler: (payload: T) => void): Pro
     return unlisten;
   }
   return () => {};
+}
+
+async function pollScanJob<T>(jobId: string): Promise<T> {
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://127.0.0.1:7878';
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    const job: any = await safeFetchJson(`${baseUrl}/api/jobs/${jobId}`);
+    if (job?.status === 'done' || job?.status === 'completed') {
+      return (job?.result || job) as T;
+    }
+    if (job?.status === 'failed' || job?.status === 'error') {
+      throw new Error(job?.message || 'Scan job failed');
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error('Scan job timed out');
 }
 
 export const DrivesAPI = {
