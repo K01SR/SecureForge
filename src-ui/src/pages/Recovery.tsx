@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 export function Recovery() {
-  const [sourcePath, setSourcePath] = useState('/dev/sdb');
+  const [sourcePath, setSourcePath] = useState('tests/fixtures/mixed_with_jpeg.dd');
   const [outputDir, setOutputDir] = useState('./recovered');
   const [minConfidence, setMinConfidence] = useState(50);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['jpg', 'png', 'pdf', 'sqlite']);
@@ -53,9 +53,15 @@ export function Recovery() {
         file_types: selectedTypes,
         min_confidence: minConfidence,
       });
-      setResult(res);
-      if (res.files.length > 0) {
-        handleInspectFile(res.files[0]);
+      // Defensively normalize the result: every mode must expose a `files`
+      // array (Tauri returns ScanResult directly; web returns a job result).
+      const normalized = {
+        ...res,
+        files: Array.isArray(res?.files) ? res.files : [],
+      };
+      setResult(normalized);
+      if (normalized.files.length > 0) {
+        handleInspectFile(normalized.files[0]);
       }
     } catch (err: any) {
       setErrorMessage(err?.message || err?.toString?.() || 'Scan failed');
