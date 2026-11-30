@@ -52,6 +52,49 @@ lazy_static::lazy_static! {
     static ref SCAN_CANCEL_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 }
 
+/// Resolve a relative evidence/file path that may be hidden under the crate
+/// while the app runs from a different working directory (`cargo tauri dev`
+/// runs with CWD = `<root>/src-tauri`, so `tests/fixtures/*` would otherwise
+/// not resolve). Absolute paths and block devices pass through unchanged.
+fn resolve_evidence_path(path: &str) -> std::path::PathBuf {
+    let p = std::path::PathBuf::from(path);
+    if p.is_absolute() || p.exists() {
+        return p;
+    }
+    // Try the current working directory, then its parent (project root), and
+    // finally the crate source dir as candidate bases.
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.clone());
+        candidates.push(cwd.join(".."));
+        candidates.push(cwd.join("..").join(".."));
+    }
+    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        let manifest_dir = std::path::PathBuf::from(manifest);
+        candidates.push(manifest_dir.clone());
+        candidates.push(manifest_dir.join(".."));
+    }
+    for base in candidates {
+        let candidate = base.join(path);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+    p
+}
+
+/// Resolve a project-relative directory (e.g. `plugins/signatures`) the same
+/// way as the evidence path above, defaulting to the raw path when not found.
+fn resolve_project_child_path(path: &str) -> std::path::PathBuf {
+    let resolved = resolve_evidence_path(path);
+    if resolved == std::path::PathBuf::from(path) && Path::new(path).is_relative() {
+        // Fall back to the given path even if it could not be re-anchored.
+        std::path::PathBuf::from(path)
+    } else {
+        resolved
+    }
+}
+
 /// Loads signatures from TOML directory with built-in fallbacks
 fn load_signature_db(signatures_dir: &Path) -> Result<SignatureDatabase, String> {
     let mut signatures = Vec::new();
@@ -142,87 +185,99 @@ pub async fn start_scan(config: ScanConfig, app_handle: AppHandle) -> Result<Sca
     let config_bg = config.clone();
 
     let result = tokio::task::spawn_blocking(move || -> Result<ScanResult, String> {
-        let signatures_dir = Path::new("plugins/signatures");
-        let sig_db = load_signature_db(signatures_dir)?;
-        let scanner = SectorScanner::new(sig_db).map_err(|e| e.to_string())?;
-        let engine = CarvingEngine::new(scanner);
-
-        let started = Instant::now();
-
-        let source_path = Path::new(&config_bg.source_path);
-        let is_block_device = config_bg.source_path.starts_with("/dev");
-
-        let _ = app_handle_bg.emit("scan-progress", ScanProgress {
-            sector_current: 0,
-            sector_total: 100,
-            percent: 0.0,
-            files_found: 0,
-            speed_mbps: 0.0,
-        });
-
-        let carve_hits = if is_block_device {
-            let mut disk = BlockDevice::open(source_path)
-                .map_err(|e| format!("Failed to open {}: {}", config_bg.source_path, e))?;
-            engine.carve(&mut disk).map_err(|e| e.to_string())?
-        } else {
-            let mut disk = RawImage::open(source_path)
-                .map_err(|e| format!("Failed to open image {}: {}", config_bg.source_path, e))?;
-            engine.carve(&mut disk).map_err(|e| e.to_string())?
+        let progress = |p: ScanProgress| {
+            let _ = app_handle_bg.emit("scan-progress", p);
         };
-
-        if SCAN_CANCEL_FLAG.load(Ordering::SeqCst) {
-            return Err("Scan cancelled".to_string());
-        }
-
-        std::fs::create_dir_all(&config_bg.output_dir).map_err(|e| e.to_string())?;
-
-        let mut files = Vec::new();
-        let min_confidence = config_bg.min_confidence;
-        for (offset, confidence, extension) in &carve_hits {
-            let confidence_pct: u8 = match confidence {
-                sih149_core::carver::confidence::Confidence::Low => 40,
-                sih149_core::carver::confidence::Confidence::Medium => 65,
-                sih149_core::carver::confidence::Confidence::High => 90,
-                sih149_core::carver::confidence::Confidence::Absolute => 100,
-            };
-            if confidence_pct < min_confidence {
-                continue;
-            }
-            if !config_bg.file_types.is_empty() && !config_bg.file_types.contains(extension) {
-                continue;
-            }
-            files.push(CarvedFile {
-                id: Uuid::new_v4().to_string(),
-                filename: format!("carved_{:016x}.{}", offset, extension),
-                file_type: extension.clone(),
-                size_bytes: 0,
-                confidence: confidence_pct,
-                offset_bytes: *offset,
-                category: extension.clone(),
-            });
-        }
-
-        let elapsed = started.elapsed().as_secs_f32().max(0.001);
-        let _ = app_handle_bg.emit("scan-progress", ScanProgress {
-            sector_current: 100,
-            sector_total: 100,
-            percent: 100.0,
-            files_found: files.len() as u32,
-            speed_mbps: 100.0 / elapsed,
-        });
-
-        Ok(ScanResult {
-            total_files: files.len() as u32,
-            total_size_bytes: 0,
-            duration_secs: started.elapsed().as_secs(),
-            entropy_heatmap: vec![0.1, 0.4, 0.8],
-            files,
-        })
+        run_scan(&config_bg, progress)
     })
     .await
     .map_err(|e| format!("Scan task panicked: {}", e))??;
 
     Ok(result)
+}
+
+/// Perform a carving scan against a block device or raw image. Shared by the
+/// Tauri IPC command and the HTTP server route so both modes behave identically.
+pub fn run_scan(
+    config: &ScanConfig,
+    mut on_progress: impl FnMut(ScanProgress),
+) -> Result<ScanResult, String> {
+    let signatures_dir = resolve_project_child_path("plugins/signatures");
+    let sig_db = load_signature_db(&signatures_dir)?;
+    let scanner = SectorScanner::new(sig_db).map_err(|e| e.to_string())?;
+    let engine = CarvingEngine::new(scanner);
+
+    let started = Instant::now();
+
+    let source_path = resolve_evidence_path(&config.source_path);
+    let is_block_device = config.source_path.starts_with("/dev");
+
+    on_progress(ScanProgress {
+        sector_current: 0,
+        sector_total: 100,
+        percent: 0.0,
+        files_found: 0,
+        speed_mbps: 0.0,
+    });
+
+    let carve_hits = if is_block_device {
+        let mut disk = BlockDevice::open(&source_path)
+            .map_err(|e| format!("Failed to open {}: {}", source_path.display(), e))?;
+        engine.carve(&mut disk).map_err(|e| e.to_string())?
+    } else {
+        let mut disk = RawImage::open(&source_path)
+            .map_err(|e| format!("Failed to open image {}: {}", source_path.display(), e))?;
+        engine.carve(&mut disk).map_err(|e| e.to_string())?
+    };
+
+    if SCAN_CANCEL_FLAG.load(Ordering::SeqCst) {
+        return Err("Scan cancelled".to_string());
+    }
+
+    std::fs::create_dir_all(&config.output_dir).map_err(|e| e.to_string())?;
+
+    let mut files = Vec::new();
+    let min_confidence = config.min_confidence;
+    for (offset, confidence, extension) in &carve_hits {
+        let confidence_pct: u8 = match confidence {
+            sih149_core::carver::confidence::Confidence::Low => 40,
+            sih149_core::carver::confidence::Confidence::Medium => 65,
+            sih149_core::carver::confidence::Confidence::High => 90,
+            sih149_core::carver::confidence::Confidence::Absolute => 100,
+        };
+        if confidence_pct < min_confidence {
+            continue;
+        }
+        if !config.file_types.is_empty() && !config.file_types.contains(extension) {
+            continue;
+        }
+        files.push(CarvedFile {
+            id: Uuid::new_v4().to_string(),
+            filename: format!("carved_{:016x}.{}", offset, extension),
+            file_type: extension.clone(),
+            size_bytes: 0,
+            confidence: confidence_pct,
+            offset_bytes: *offset,
+            category: extension.clone(),
+        });
+    }
+
+    let elapsed = started.elapsed().as_secs_f32().max(0.001);
+    on_progress(ScanProgress {
+        sector_current: 100,
+        sector_total: 100,
+        percent: 100.0,
+        files_found: files.len() as u32,
+        speed_mbps: 100.0 / elapsed,
+    });
+
+    Ok(ScanResult {
+        total_files: files.len() as u32,
+        total_size_bytes: 0,
+        duration_secs: started.elapsed().as_secs(),
+        entropy_heatmap: vec![0.1, 0.4, 0.8],
+        files,
+    })
 }
 
 #[tauri::command]
@@ -238,16 +293,27 @@ pub fn get_file_hex_preview(
     length: usize,
     allowed_root: Option<String>,
 ) -> Result<String, String> {
+    get_file_hex_preview_str(&file_path, offset, length, allowed_root.as_deref())
+}
+
+/// Shared hex-preview implementation used by the Tauri command and the HTTP
+/// `/api/hex` route so both modes return identical results.
+pub fn get_file_hex_preview_str(
+    file_path: &str,
+    offset: u64,
+    length: usize,
+    allowed_root: Option<&str>,
+) -> Result<String, String> {
     use std::fs::File;
     use std::io::{Read, Seek, SeekFrom};
     use std::path::Path;
 
-    let path = Path::new(&file_path);
+    let path = Path::new(file_path);
     let resolved = path
         .canonicalize()
         .map_err(|e| format!("Failed to resolve {}: {}", file_path, e))?;
 
-    if let Some(ref root_str) = allowed_root {
+    if let Some(root_str) = allowed_root {
         if !root_str.is_empty() {
             let root = Path::new(root_str)
                 .canonicalize()
